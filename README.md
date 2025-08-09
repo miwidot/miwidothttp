@@ -24,6 +24,8 @@ A blazingly fast, production-ready HTTP/HTTPS server written in Rust with automa
 
 ## 📊 Performance Benchmarks
 
+> **Note**: See [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for complete methodology, reproduction scripts, and raw data.
+
 Benchmarks performed on Ubuntu 24.04 LTS, Intel Xeon 16-core, 32GB RAM (August 2025):
 
 | Metric | miwidothttp | nginx | Improvement |
@@ -117,6 +119,8 @@ Complete documentation available at: [docs/](docs/)
 - [API Documentation](docs/API.md)
 - [Deployment Guide](docs/DEPLOYMENT.md)
 - [Troubleshooting](docs/TROUBLESHOOTING.md)
+- [**Performance Benchmarks**](docs/BENCHMARKS.md) - Detailed methodology and reproduction steps
+- [**Security Architecture**](docs/SECURITY.md) - Comprehensive security implementation details
 
 ## License
 
