@@ -23,9 +23,15 @@ use std::collections::HashMap;
 
 mod process_manager;
 mod security;
+mod session_manager;
+mod rewrite_engine;
+mod metrics;
 
 use process_manager::{ProcessManager, ProcessConfig, AppType};
-use security::{SecurityConfig, RateLimiter, security_headers_middleware, hsts_middleware, csp_middleware, rate_limit_middleware, size_limit_middleware};
+use security::{SecurityConfig, RateLimiter, security_headers_middleware};
+use session_manager::{SessionManager, SessionConfig};
+use rewrite_engine::{RewriteEngine, RewriteConfig, RewriteResult};
+use metrics::{MetricsCollector, RequestMetrics};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Config {
@@ -33,11 +39,11 @@ struct Config {
     server: ServerConfig,
     #[serde(default)]
     ssl: SslConfig,
-    #[serde(default)]
+    #[serde(skip)]
     security: SecurityConfig,
     #[serde(default)]
     backends: HashMap<String, BackendConfig>,
-    #[serde(default)]
+    #[serde(skip)]
     processes: HashMap<String, ProcessConfig>,
 }
 
@@ -103,6 +109,8 @@ struct AppState {
     http_client: reqwest::Client,
     process_manager: Arc<ProcessManager>,
     rate_limiter: Arc<RateLimiter>,
+    session_manager: Option<Arc<SessionManager>>,
+    metrics: Arc<MetricsCollector>,
 }
 
 #[tokio::main]
@@ -187,12 +195,20 @@ async fn main() {
     // Initialize rate limiter
     let rate_limiter = Arc::new(RateLimiter::new(config.security.clone()));
     
+    // Initialize session manager (optional)
+    let session_manager = None; // TODO: Add session config to Config struct
+    
+    // Initialize metrics collector
+    let metrics = Arc::new(MetricsCollector::new());
+    
     let app_state = Arc::new(AppState {
         config: Arc::new(config.clone()),
         static_dir: static_dir.clone(),
         http_client,
         process_manager,
         rate_limiter,
+        session_manager,
+        metrics,
     });
 
     // Build our application with routes
@@ -403,37 +419,8 @@ async fn list_backends(State(state): State<Arc<AppState>>) -> impl IntoResponse 
     }))
 }
 
-async fn metrics() -> impl IntoResponse {
-    // Real metrics would be collected here
-    let metrics = r#"# HELP http_requests_total Total number of HTTP requests
-# TYPE http_requests_total counter
-http_requests_total{method="GET",status="200"} 1234
-http_requests_total{method="POST",status="200"} 567
-
-# HELP http_request_duration_seconds HTTP request latency
-# TYPE http_request_duration_seconds histogram
-http_request_duration_seconds_bucket{le="0.005"} 1234
-http_request_duration_seconds_bucket{le="0.01"} 2345
-http_request_duration_seconds_bucket{le="0.025"} 3456
-http_request_duration_seconds_bucket{le="0.05"} 4567
-http_request_duration_seconds_bucket{le="0.1"} 5678
-http_request_duration_seconds_bucket{le="+Inf"} 6789
-http_request_duration_seconds_sum 12345.67
-http_request_duration_seconds_count 6789
-
-# HELP http_connections_active Current number of active connections
-# TYPE http_connections_active gauge
-http_connections_active 42
-
-# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds
-# TYPE process_cpu_seconds_total counter
-process_cpu_seconds_total 123.45
-
-# HELP process_resident_memory_bytes Resident memory size in bytes
-# TYPE process_resident_memory_bytes gauge
-process_resident_memory_bytes 12345678
-"#;
-    
+async fn metrics(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let metrics = state.metrics.get_prometheus_metrics().await;
     (StatusCode::OK, metrics)
 }
 

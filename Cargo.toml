@@ -52,8 +52,11 @@ nix = { version = "0.29", features = ["process", "signal"] }
 # Compression for log rotation
 flate2 = "1.0"
 
-# Pattern matching for vhosts
+# Pattern matching for vhosts and rewrite rules
 regex = "1.10"
+
+# System information for metrics
+sys-info = "0.9"
 
 # Session management
 redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
