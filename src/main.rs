@@ -3,7 +3,7 @@ use axum::{
     extract::{Host, Request, State},
     http::{StatusCode, Uri, HeaderValue, Method},
     response::{Html, IntoResponse, Response},
-    routing::{get, any},
+    routing::{get, post, any},
     Router,
 };
 use axum_server::tls_rustls::RustlsConfig;
@@ -21,6 +21,12 @@ use serde::{Deserialize, Serialize};
 use tokio::fs;
 use std::collections::HashMap;
 
+mod process_manager;
+mod security;
+
+use process_manager::{ProcessManager, ProcessConfig, AppType};
+use security::{SecurityConfig, RateLimiter, security_headers_middleware, hsts_middleware, csp_middleware, rate_limit_middleware, size_limit_middleware};
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Config {
     #[serde(default)]
@@ -28,7 +34,11 @@ struct Config {
     #[serde(default)]
     ssl: SslConfig,
     #[serde(default)]
+    security: SecurityConfig,
+    #[serde(default)]
     backends: HashMap<String, BackendConfig>,
+    #[serde(default)]
+    processes: HashMap<String, ProcessConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -53,7 +63,9 @@ struct SslConfig {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct BackendConfig {
-    target: String,
+    #[serde(flatten)]
+    process: Option<ProcessConfig>,
+    target: Option<String>,
     #[serde(default)]
     health_check: Option<String>,
 }
@@ -89,6 +101,8 @@ struct AppState {
     config: Arc<Config>,
     static_dir: PathBuf,
     http_client: reqwest::Client,
+    process_manager: Arc<ProcessManager>,
+    rate_limiter: Arc<RateLimiter>,
 }
 
 #[tokio::main]
@@ -156,10 +170,29 @@ async fn main() {
         .build()
         .expect("Failed to create HTTP client");
 
+    // Initialize process manager
+    let process_manager = Arc::new(ProcessManager::new());
+    
+    // Start configured processes
+    for (name, proc_config) in &config.processes {
+        info!("Starting process: {}", name);
+        if let Err(e) = process_manager.start_process(name.clone(), proc_config.clone()).await {
+            error!("Failed to start process {}: {}", name, e);
+        }
+    }
+    
+    // Start process monitoring
+    process_manager.monitor_processes().await;
+    
+    // Initialize rate limiter
+    let rate_limiter = Arc::new(RateLimiter::new(config.security.clone()));
+    
     let app_state = Arc::new(AppState {
         config: Arc::new(config.clone()),
         static_dir: static_dir.clone(),
         http_client,
+        process_manager,
+        rate_limiter,
     });
 
     // Build our application with routes
@@ -239,6 +272,8 @@ fn create_app(state: Arc<AppState>) -> Router {
         // API endpoints
         .route("/api/status", get(api_status))
         .route("/api/backends", get(list_backends))
+        .route("/api/processes", get(list_processes))
+        .route("/api/processes/:name/restart", post(restart_process))
         // Metrics endpoint
         .route("/metrics", get(metrics))
         // Static files
@@ -248,6 +283,7 @@ fn create_app(state: Arc<AppState>) -> Router {
         .route("/*path", any(proxy_handler))
         .layer(
             ServiceBuilder::new()
+                // Standard middlewares
                 .layer(TraceLayer::new_for_http()
                     .make_span_with(DefaultMakeSpan::new()
                         .level(Level::INFO))
@@ -256,6 +292,8 @@ fn create_app(state: Arc<AppState>) -> Router {
                 .layer(CompressionLayer::new())
                 .layer(CorsLayer::permissive())
         )
+        // Security middlewares (added separately for now)
+        .layer(axum::middleware::from_fn(security_headers_middleware))
         .with_state(state)
 }
 
@@ -292,7 +330,9 @@ async fn load_config() -> Config {
     Config {
         server: ServerConfig::default(),
         ssl: SslConfig::default(),
+        security: SecurityConfig::default(),
         backends: HashMap::new(),
+        processes: HashMap::new(),
     }
 }
 
@@ -397,6 +437,29 @@ process_resident_memory_bytes 12345678
     (StatusCode::OK, metrics)
 }
 
+async fn list_processes(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+    let statuses = state.process_manager.get_status().await;
+    axum::Json(serde_json::json!({
+        "processes": statuses
+    }))
+}
+
+async fn restart_process(
+    State(state): State<Arc<AppState>>,
+    axum::extract::Path(name): axum::extract::Path<String>,
+) -> impl IntoResponse {
+    match state.process_manager.restart_process(&name).await {
+        Ok(_) => (StatusCode::OK, axum::Json(serde_json::json!({
+            "status": "success",
+            "message": format!("Process {} restarted", name)
+        }))),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(serde_json::json!({
+            "status": "error",
+            "message": format!("Failed to restart process: {}", e)
+        })))
+    }
+}
+
 async fn proxy_handler(
     Host(host): Host,
     State(state): State<Arc<AppState>>,
@@ -406,8 +469,20 @@ async fn proxy_handler(
     let backend = state.config.backends.get(&host);
     
     if let Some(backend_config) = backend {
+        // Get the target URL - either from direct target or from process config
+        let target = if let Some(ref target_str) = backend_config.target {
+            target_str.clone()
+        } else if let Some(ref process_config) = backend_config.process {
+            format!("http://localhost:{}", process_config.port)
+        } else {
+            return Response::builder()
+                .status(StatusCode::BAD_GATEWAY)
+                .body(Body::from("No backend target configured"))
+                .unwrap();
+        };
+        
         // Proxy the request to the backend
-        let target_url = format!("{}{}", backend_config.target, req.uri().path());
+        let target_url = format!("{}{}", target, req.uri().path());
         
         info!("Proxying request from {} to {}", host, target_url);
         

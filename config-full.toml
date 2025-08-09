@@ -1,0 +1,116 @@
+# Complete miwidothttp Configuration Example
+
+[server]
+http_port = 8080
+https_port = 8443
+bind_address = "0.0.0.0"
+static_dir = "./static"
+
+[ssl]
+enabled = true
+cert_path = "./certs/server.crt"
+key_path = "./certs/server.key"
+
+[security]
+enable_hsts = true
+hsts_max_age = 31536000
+enable_csp = true
+csp_policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+enable_rate_limiting = true
+rate_limit_requests = 100
+rate_limit_window = 60  # seconds
+max_body_size = 10485760  # 10MB
+max_header_size = 8192
+
+# Process Management Examples
+# Node.js Application
+[processes.node-app]
+app_type = "nodejs"
+command = "node"
+args = ["app.js"]
+working_dir = "./apps/node-app"
+port = 3000
+auto_restart = true
+health_check = "/health"
+
+[processes.node-app.env]
+NODE_ENV = "production"
+DATABASE_URL = "postgresql://localhost/myapp"
+
+# Python Application
+[processes.python-app]
+app_type = "python"
+command = "python3"
+args = ["-m", "flask", "run"]
+working_dir = "./apps/python-app"
+port = 5000
+auto_restart = true
+
+[processes.python-app.env]
+FLASK_APP = "app.py"
+FLASK_ENV = "production"
+
+# Tomcat Application
+[processes.tomcat-app]
+app_type = "tomcat"
+command = "/usr/local/tomcat/bin/catalina.sh"
+args = []
+working_dir = "/usr/local/tomcat"
+port = 8081
+auto_restart = true
+
+[processes.tomcat-app.env]
+CATALINA_HOME = "/usr/local/tomcat"
+JAVA_OPTS = "-Xmx512m"
+
+# PHP-FPM Application
+[processes.php-app]
+app_type = "phpfpm"
+command = "php-fpm"
+args = []
+working_dir = "./apps/php-app"
+port = 9000
+auto_restart = true
+
+[processes.php-app.env]
+PHP_FPM_CONFIG = "./php-fpm.conf"
+
+# Backend configurations for virtual hosts
+# Direct proxy to external service
+[backends."api.example.com"]
+target = "http://localhost:3000"
+health_check = "/health"
+
+# Backend managed by process manager
+[backends."app.example.com"]
+# No target specified - will use process config
+[backends."app.example.com".process]
+app_type = "nodejs"
+command = "node"
+args = ["server.js"]
+working_dir = "./apps/main-app"
+port = 4000
+auto_restart = true
+
+[backends."app.example.com".process.env]
+NODE_ENV = "production"
+
+# Static file serving
+[backends."static.example.com"]
+[backends."static.example.com".process]
+app_type = "static"
+working_dir = "./sites/static-site"
+port = 0  # Not used for static
+
+# PHP application with PHP-FPM
+[backends."blog.example.com"]
+[backends."blog.example.com".process]
+app_type = "phpfpm"
+command = "php-fpm"
+args = ["-F"]
+working_dir = "./apps/wordpress"
+port = 9001
+auto_restart = true
+
+[backends."blog.example.com".process.env]
+PHP_FPM_CONFIG = "./php-fpm-blog.conf"
