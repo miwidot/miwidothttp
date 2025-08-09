@@ -1,0 +1,75 @@
+[server]
+http_port = 8080
+https_port = 8443
+enable_https = true
+workers = 4
+
+[ssl]
+auto_cert = true
+domains = ["example.com", "*.example.com"]
+# Optional: Use existing certificates
+# cert_path = "/path/to/cert.pem"
+# key_path = "/path/to/key.pem"
+
+[cloudflare]
+# Use either API token (recommended)
+api_token = "YOUR_CLOUDFLARE_API_TOKEN"
+# Or API key + email
+# api_key = "YOUR_API_KEY"
+# email = "your-email@example.com"
+zone_id = "YOUR_ZONE_ID"
+
+# Backend configurations
+[backends."app.example.com"]
+url = "http://localhost:3000"
+app_type = "nodejs"
+health_check = "/health"
+
+[backends."app.example.com".process]
+command = "node"
+args = ["server.js"]
+working_dir = "/app"
+auto_restart = true
+
+[backends."app.example.com".process.env]
+NODE_ENV = "production"
+
+[backends."api.example.com"]
+url = "http://localhost:8000"
+app_type = "python"
+health_check = "/api/health"
+
+[backends."api.example.com".process]
+command = "python"
+args = ["-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+working_dir = "/api"
+auto_restart = true
+
+[backends."api.example.com".process.env]
+PYTHONPATH = "/api"
+
+[backends."static.example.com"]
+url = "http://localhost:8081"
+app_type = "static"
+
+[backends."proxy.example.com"]
+url = "https://external-service.com"
+app_type = "proxy"
+
+# Tomcat application example
+[backends."tomcat.example.com"]
+url = "http://localhost:8081"
+app_type = "tomcat"
+health_check = "/manager/status"
+
+[backends."tomcat.example.com".process]
+command = "catalina.sh"
+args = ["run"]
+working_dir = "/opt/tomcat"
+auto_restart = true
+
+[backends."tomcat.example.com".process.env]
+CATALINA_HOME = "/opt/tomcat"
+CATALINA_BASE = "/opt/tomcat"
+JAVA_HOME = "/usr/lib/jvm/java-11-openjdk"
+JAVA_OPTS = "-Xms512m -Xmx2048m -XX:MaxMetaspaceSize=512m"

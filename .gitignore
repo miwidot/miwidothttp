@@ -1,0 +1,61 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+logs/
+*.log
+*.gz
+
+# Config (with secrets)
+config.local.toml
+.env
+
+# Certificates
+*.pem
+*.key
+*.crt
+*.p12
+
+# Benchmark results
+benchmark/results/
+benchmark/static/*.bin
+
+# Test files
+test-data/
+tmp/
+
+# OS
+Thumbs.db
+desktop.ini
+
+# Python (for benchmark scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+venv/
+env/
+
+# Node.js (for test apps)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage
+*.profraw
+*.profdata
+coverage/
+lcov.info
+EOF < /dev/null
