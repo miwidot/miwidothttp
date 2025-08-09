@@ -1,0 +1,246 @@
+# Multi Virtual Host Configuration Example
+
+[server]
+http_port = 8080
+https_port = 8443
+enable_https = true
+workers = 4
+
+# Global SSL configuration
+[ssl]
+auto_cert = false  # Using per-vhost certificates
+
+[cloudflare]
+api_token = "YOUR_CLOUDFLARE_API_TOKEN"
+zone_id = "YOUR_ZONE_ID"
+
+# Global logging
+[logging]
+[logging.access_log]
+enabled = true
+path = "logs/access.log"
+format = "combined"
+
+# ============================================
+# VIRTUAL HOST CONFIGURATIONS
+# ============================================
+
+# Main website - example.com
+[[vhosts]]
+domains = ["example.com", "www.example.com"]
+priority = 100
+
+[vhosts.ssl]
+cert_path = "/etc/ssl/certs/example.com.crt"
+key_path = "/etc/ssl/private/example.com.key"
+protocols = ["TLSv1.2", "TLSv1.3"]
+
+[vhosts.backend]
+urls = ["http://localhost:3000"]
+strategy = "round_robin"
+health_check = "/health"
+timeout = 30
+
+[vhosts.logging]
+access_log = "logs/example.com.access.log"
+error_log = "logs/example.com.error.log"
+format = "json"
+
+[vhosts.limits]
+rate_limit = 1000  # requests per minute
+max_connections = 5000
+max_request_size = "10MB"
+timeout = 60
+
+[vhosts.headers]
+X-Frame-Options = "SAMEORIGIN"
+X-Content-Type-Options = "nosniff"
+Strict-Transport-Security = "max-age=31536000"
+
+[vhosts.error_pages]
+404 = "/errors/404.html"
+500 = "/errors/500.html"
+
+[[vhosts.redirects]]
+from = "/old-path"
+to = "/new-path"
+status = 301
+permanent = true
+
+# ============================================
+# API subdomain - api.example.com
+[[vhosts]]
+domains = ["api.example.com"]
+priority = 100
+
+[vhosts.ssl]
+cert_path = "/etc/ssl/certs/api.example.com.crt"
+key_path = "/etc/ssl/private/api.example.com.key"
+
+[vhosts.backend]
+urls = [
+    "http://localhost:8001",
+    "http://localhost:8002",
+    "http://localhost:8003"
+]
+strategy = "least_conn"
+health_check = "/api/health"
+
+[vhosts.backend.retry]
+attempts = 3
+delay_ms = 100
+backoff = true
+
+[vhosts.limits]
+rate_limit = 10000  # Higher limit for API
+max_request_size = "50MB"
+
+[vhosts.access_control]
+allow = ["192.168.1.0/24", "10.0.0.0/8"]
+
+[vhosts.access_control.auth]
+auth_type = "bearer"
+realm = "API Access"
+
+# ============================================
+# Static files CDN - cdn.example.com
+[[vhosts]]
+domains = ["cdn.example.com", "static.example.com"]
+priority = 90
+root = "/var/www/static"
+
+[vhosts.headers]
+Cache-Control = "public, max-age=31536000"
+Access-Control-Allow-Origin = "*"
+
+[vhosts.limits]
+rate_limit = 50000
+max_connections = 10000
+
+# ============================================
+# Wildcard subdomains - *.app.example.com
+[[vhosts]]
+domains = ["*.app.example.com"]
+priority = 80
+
+[vhosts.ssl]
+cert_path = "/etc/ssl/certs/wildcard.app.example.com.crt"
+key_path = "/etc/ssl/private/wildcard.app.example.com.key"
+
+[vhosts.backend]
+urls = ["http://localhost:4000"]
+strategy = "ip_hash"  # Sticky sessions
+
+[vhosts.logging]
+access_log = "logs/apps.access.log"
+format = "json"
+
+# ============================================
+# Development environment - dev.example.com
+[[vhosts]]
+domains = ["dev.example.com", "*.dev.example.com"]
+priority = 70
+
+[vhosts.ssl]
+cert_path = "/etc/ssl/certs/dev.example.com.crt"
+key_path = "/etc/ssl/private/dev.example.com.key"
+client_auth = "optional"  # Allow client certificates
+
+[vhosts.backend]
+urls = ["http://localhost:5000"]
+strategy = "round_robin"
+
+[vhosts.access_control]
+allow = ["192.168.0.0/16"]  # Internal network only
+deny = ["192.168.1.100"]    # Except this IP
+
+[vhosts.limits]
+rate_limit = 100  # Lower limit for dev
+
+# ============================================
+# Tomcat application - tomcat.example.com
+[[vhosts]]
+domains = ["tomcat.example.com"]
+priority = 100
+
+[vhosts.backend]
+urls = ["http://localhost:8081"]
+strategy = "round_robin"
+health_check = "/manager/status"
+
+# Process management for Tomcat
+[vhosts.process]
+command = "catalina.sh"
+args = ["run"]
+working_dir = "/opt/tomcat"
+auto_restart = true
+
+[vhosts.process.env]
+CATALINA_HOME = "/opt/tomcat"
+JAVA_HOME = "/usr/lib/jvm/java-11-openjdk"
+JAVA_OPTS = "-Xms512m -Xmx2048m"
+
+# ============================================
+# Default vhost for unmatched domains
+[[vhosts]]
+domains = ["_"]  # Special domain for default
+priority = 0
+
+[vhosts.error_pages]
+404 = "/default/404.html"
+
+[vhosts.headers]
+X-Robots-Tag = "noindex, nofollow"
+
+# Simple backend that returns 404
+[vhosts.backend]
+urls = ["http://localhost:9999"]
+strategy = "round_robin"
+
+# ============================================
+# Admin panel with authentication
+[[vhosts]]
+domains = ["admin.example.com"]
+priority = 100
+
+[vhosts.ssl]
+cert_path = "/etc/ssl/certs/admin.example.com.crt"
+key_path = "/etc/ssl/private/admin.example.com.key"
+client_auth = "required"  # Require client certificates
+
+[vhosts.backend]
+urls = ["http://localhost:6000"]
+strategy = "round_robin"
+
+[vhosts.access_control]
+allow = ["10.0.0.0/8"]  # VPN only
+
+[vhosts.access_control.auth]
+auth_type = "basic"
+realm = "Admin Access"
+
+[vhosts.access_control.auth.users]
+admin = "$2b$12$..."  # bcrypt hashed password
+operator = "$2b$12$..."
+
+[vhosts.limits]
+rate_limit = 10  # Very restrictive
+max_connections = 100
+
+# ============================================
+# WebSocket application
+[[vhosts]]
+domains = ["ws.example.com"]
+priority = 100
+
+[vhosts.backend]
+urls = ["http://localhost:7000"]
+strategy = "ip_hash"  # Important for WebSocket
+health_check = "/ws/health"
+
+[vhosts.headers]
+Upgrade = "websocket"
+Connection = "upgrade"
+
+[vhosts.limits]
+max_connections = 50000  # High for WebSocket

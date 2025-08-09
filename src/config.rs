@@ -54,6 +54,7 @@ pub enum AppType {
     Python,
     Proxy,
     Tomcat,
+    PhpFpm,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

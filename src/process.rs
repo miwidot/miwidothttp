@@ -45,6 +45,9 @@ impl ProcessManager {
                 AppType::Tomcat => {
                     self.start_tomcat_app(&name, process_config).await?;
                 }
+                AppType::PhpFpm => {
+                    self.start_phpfpm_app(&name, process_config).await?;
+                }
                 _ => {
                     info!("No process management needed for {:?} backend", backend.app_type);
                 }
@@ -124,6 +127,63 @@ impl ProcessManager {
         let process_info = ProcessInfo {
             pid,
             app_type: AppType::Python,
+            config: config.clone(),
+            restart_count: 0,
+            last_restart: None,
+        };
+
+        let mut processes = self.processes.write().await;
+        processes.insert(name.to_string(), process_info);
+
+        let mut children = self.children.write().await;
+        children.insert(name.to_string(), child);
+
+        if config.auto_restart {
+            self.monitor_process(name.to_string());
+        }
+
+        Ok(())
+    }
+
+    async fn start_phpfpm_app(&self, name: &str, config: &ProcessConfig) -> Result<()> {
+        info!("Starting PHP-FPM application: {}", name);
+        
+        // PHP-FPM specific setup
+        let php_fpm_binary = config.command.clone();
+        let config_file = config.env.get("PHP_FPM_CONFIG")
+            .unwrap_or(&"/etc/php/8.3/fpm/php-fpm.conf".to_string())
+            .clone();
+        
+        let mut cmd = Command::new(&php_fpm_binary);
+        cmd.arg("-F") // Run in foreground
+            .arg("-y").arg(&config_file) // Config file
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+
+        if let Some(working_dir) = &config.working_dir {
+            cmd.current_dir(working_dir);
+        }
+
+        // Set PHP-FPM environment variables
+        for (key, value) in &config.env {
+            cmd.env(key, value);
+        }
+
+        // Common PHP environment variables
+        cmd.env("PHP_FPM_ERROR_LOG", config.env.get("PHP_FPM_ERROR_LOG")
+            .unwrap_or(&"/var/log/php-fpm/error.log".to_string()));
+        cmd.env("PHP_FPM_ACCESS_LOG", config.env.get("PHP_FPM_ACCESS_LOG")
+            .unwrap_or(&"/var/log/php-fpm/access.log".to_string()));
+
+        let child = cmd.spawn()?;
+        let pid = child.id().ok_or_else(|| anyhow!("Failed to get process ID"))?;
+
+        info!("PHP-FPM app {} started with PID: {}", name, pid);
+
+        let process_info = ProcessInfo {
+            pid,
+            app_type: AppType::PhpFpm,
             config: config.clone(),
             restart_count: 0,
             last_restart: None,
@@ -269,6 +329,7 @@ impl ProcessManager {
                 AppType::NodeJS => self.start_nodejs_app(name, &config).await?,
                 AppType::Python => self.start_python_app(name, &config).await?,
                 AppType::Tomcat => self.start_tomcat_app(name, &config).await?,
+                AppType::PhpFpm => self.start_phpfpm_app(name, &config).await?,
                 _ => {}
             }
         }

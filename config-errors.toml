@@ -1,0 +1,283 @@
+# Error Handling Configuration
+
+[server]
+http_port = 8080
+https_port = 8443
+
+# ============================================
+# ERROR HANDLING CONFIGURATION
+# ============================================
+
+[errors]
+mode = "production"  # development, production, maintenance
+show_details = false  # Show error details in production
+log_errors = true
+rate_limit_errors = true  # Prevent error page DoS
+
+# Custom error pages
+[errors.custom_pages]
+400 = "400.html"
+401 = "401.html"
+403 = "403.html"
+404 = "404.html"
+405 = "405.html"
+408 = "408.html"
+409 = "409.html"
+410 = "410.html"
+413 = "413.html"
+414 = "414.html"
+415 = "415.html"
+422 = "422.html"
+429 = "429.html"
+500 = "500.html"
+502 = "502.html"
+503 = "503.html"
+504 = "504.html"
+
+templates_dir = "templates/errors"
+
+# Error notifications
+[errors.notifications]
+email = "admin@example.com"
+webhook = "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+threshold = 10  # Send notification after 10 errors
+interval = 300  # Wait 5 minutes between notifications
+
+# Error tracking services
+[errors.tracking]
+sentry_dsn = "https://YOUR_KEY@sentry.io/YOUR_PROJECT"
+datadog_api_key = "YOUR_DATADOG_API_KEY"
+custom_endpoint = "https://your-error-tracker.com/api/errors"
+
+# ============================================
+# PER-VHOST ERROR CONFIGURATION
+# ============================================
+
+# Main website with branded error pages
+[[vhosts]]
+domains = ["www.example.com"]
+priority = 100
+
+[vhosts.errors]
+mode = "production"
+templates_dir = "templates/branded-errors"
+
+[vhosts.errors.custom_pages]
+404 = "404-branded.html"
+500 = "500-branded.html"
+
+[vhosts.errors.fallback]
+# Fallback content when template fails
+404 = "We couldn't find that page. Please check the URL or return to homepage."
+500 = "Something went wrong. Our team has been notified."
+
+# API with JSON error responses
+[[vhosts]]
+domains = ["api.example.com"]
+priority = 100
+
+[vhosts.errors]
+mode = "production"
+format = "json"  # Always return JSON errors
+include_stack_trace = false
+include_request_id = true
+
+[vhosts.errors.response_schema]
+# Consistent error response format
+template = '''
+{
+  "error": {
+    "code": "{{code}}",
+    "message": "{{message}}",
+    "details": {{details}},
+    "timestamp": "{{timestamp}}",
+    "request_id": "{{request_id}}"
+  },
+  "success": false
+}
+'''
+
+# Development environment with debug info
+[[vhosts]]
+domains = ["dev.example.com"]
+priority = 100
+
+[vhosts.errors]
+mode = "development"
+show_details = true
+include_stack_trace = true
+include_environment = true
+include_headers = true
+
+# ============================================
+# ERROR RECOVERY STRATEGIES
+# ============================================
+
+[recovery]
+enable_circuit_breaker = true
+circuit_breaker_threshold = 5  # Errors before opening
+circuit_breaker_timeout = 60   # Seconds before retry
+enable_retry = true
+retry_attempts = 3
+retry_delay_ms = 100
+retry_backoff = "exponential"  # linear, exponential
+
+# Fallback responses for common errors
+[recovery.fallbacks]
+database_error = "Our database is temporarily unavailable. Please try again in a few moments."
+upstream_error = "We're having trouble connecting to our services. Please refresh the page."
+timeout_error = "The request took too long. Please try again."
+
+# ============================================
+# ERROR PAGE CONTENT
+# ============================================
+
+# Maintenance mode configuration
+[maintenance]
+enabled = false
+message = "We're performing scheduled maintenance"
+estimated_time = "2 hours"
+allow_ips = ["192.168.1.0/24", "10.0.0.0/8"]  # Admin access
+
+[maintenance.page]
+title = "Under Maintenance"
+template = "maintenance.html"
+auto_refresh = 60  # Refresh page every 60 seconds
+
+# ============================================
+# ERROR MONITORING & ANALYTICS
+# ============================================
+
+[monitoring]
+collect_metrics = true
+metrics_endpoint = "/metrics/errors"
+
+[monitoring.alerts]
+# Alert when error rate exceeds threshold
+error_rate_threshold = 0.05  # 5% error rate
+alert_window = 300  # 5 minute window
+alert_cooldown = 1800  # 30 minutes between alerts
+
+[monitoring.breakdown]
+by_status_code = true
+by_endpoint = true
+by_user_agent = true
+by_ip = true
+by_time = true
+
+# ============================================
+# CUSTOM ERROR HANDLERS
+# ============================================
+
+# Rate limiting errors
+[handlers.rate_limit]
+status = 429
+message = "Too Many Requests"
+retry_after = 60  # Seconds
+response_headers = { "X-RateLimit-Limit" = "100", "X-RateLimit-Remaining" = "0" }
+
+# Authentication errors
+[handlers.auth]
+401_message = "Please authenticate to access this resource"
+403_message = "You don't have permission to perform this action"
+redirect_to_login = true
+login_url = "/auth/login"
+
+# Validation errors
+[handlers.validation]
+status = 422
+format = "json"
+include_field_errors = true
+response_template = '''
+{
+  "error": "Validation failed",
+  "fields": {{field_errors}}
+}
+'''
+
+# ============================================
+# ERROR CACHE CONFIGURATION
+# ============================================
+
+[error_cache]
+enabled = true
+cache_404_pages = true
+cache_duration = 300  # 5 minutes
+cache_size_mb = 10
+
+# Don't cache errors for these paths
+exclude_paths = [
+    "/api/*",
+    "/admin/*",
+    "/auth/*"
+]
+
+# ============================================
+# LOCALIZED ERROR MESSAGES
+# ============================================
+
+[localization]
+default_language = "en"
+detect_from_header = true  # Use Accept-Language
+
+[localization.messages.en]
+404 = "Page not found"
+500 = "Internal server error"
+503 = "Service unavailable"
+
+[localization.messages.es]
+404 = "Página no encontrada"
+500 = "Error interno del servidor"
+503 = "Servicio no disponible"
+
+[localization.messages.fr]
+404 = "Page non trouvée"
+500 = "Erreur interne du serveur"
+503 = "Service non disponible"
+
+[localization.messages.de]
+404 = "Seite nicht gefunden"
+500 = "Interner Serverfehler"
+503 = "Dienst nicht verfügbar"
+
+[localization.messages.ja]
+404 = "ページが見つかりません"
+500 = "内部サーバーエラー"
+503 = "サービス利用不可"
+
+# ============================================
+# ERROR LOG FORMATTING
+# ============================================
+
+[error_logging]
+format = "json"  # json, text, custom
+include_stack_trace = true
+include_request_body = false  # Privacy concern
+include_response_body = false
+max_body_size = 1024  # Bytes
+
+[error_logging.fields]
+timestamp = true
+error_id = true
+status_code = true
+method = true
+uri = true
+user_agent = true
+ip_address = true
+user_id = true
+session_id = true
+duration = true
+
+# ============================================
+# DEVELOPMENT ERROR PAGE FEATURES
+# ============================================
+
+[development]
+show_source_code = true
+show_stack_trace = true
+show_environment = true
+show_request_headers = true
+show_request_body = true
+show_database_queries = true
+interactive_console = true  # REPL in error page
+hot_reload = true  # Auto-refresh on code change

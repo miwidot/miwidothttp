@@ -1,0 +1,437 @@
+# PHP-FPM Configuration Examples
+
+[server]
+http_port = 8080
+https_port = 8443
+
+# ============================================
+# PHP-FPM BACKEND CONFIGURATION
+# ============================================
+
+# WordPress site with PHP-FPM
+[[vhosts]]
+domains = ["wordpress.example.com", "www.wordpress.example.com"]
+priority = 100
+root = "/var/www/wordpress"
+index_files = ["index.php", "index.html"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+# Connection method (socket or tcp)
+socket_path = "/run/php/php8.3-fpm.sock"
+# Or use TCP connection
+# tcp_addr = "127.0.0.1:9000"
+
+# Document root for PHP scripts
+document_root = "/var/www/wordpress"
+
+# Default script (for router scripts)
+script_filename = "/var/www/wordpress/index.php"
+
+# FastCGI parameters
+[vhosts.backend.phpfpm.params]
+PHP_VALUE = "memory_limit=256M"
+PHP_ADMIN_VALUE = "open_basedir=/var/www/wordpress:/tmp"
+
+# PHP-FPM process configuration
+[vhosts.backend.process]
+type = "phpfpm"
+command = "/usr/sbin/php-fpm8.3"
+args = ["-F", "-y", "/etc/php/8.3/fpm/php-fpm.conf"]
+working_dir = "/var/www/wordpress"
+auto_restart = true
+
+[vhosts.backend.process.env]
+PHP_FPM_CONFIG = "/etc/php/8.3/fpm/php-fpm.conf"
+PHP_FPM_POOL = "/etc/php/8.3/fpm/pool.d/www.conf"
+PHP_FPM_ERROR_LOG = "/var/log/php8.3-fpm/error.log"
+PHP_FPM_ACCESS_LOG = "/var/log/php8.3-fpm/access.log"
+
+# URL rewriting for WordPress
+[[vhosts.rewrites]]
+pattern = "^/(.*)$"
+replacement = "/index.php"
+conditions = [
+    { type = "file", path = "${request_filename}", negate = true },
+    { type = "directory", path = "${request_filename}", negate = true }
+]
+
+# ============================================
+# LARAVEL APPLICATION
+# ============================================
+
+[[vhosts]]
+domains = ["laravel.example.com"]
+priority = 100
+root = "/var/www/laravel/public"
+index_files = ["index.php"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+tcp_addr = "127.0.0.1:9001"  # Separate pool for Laravel
+document_root = "/var/www/laravel/public"
+
+[vhosts.backend.phpfpm.params]
+PHP_VALUE = "max_execution_time=30"
+APP_ENV = "production"
+APP_DEBUG = "false"
+
+# Laravel URL rewriting
+[[vhosts.rewrites]]
+pattern = "^/(.*)$"
+replacement = "/index.php/$1"
+conditions = [
+    { type = "file", path = "${request_filename}", negate = true },
+    { type = "directory", path = "${request_filename}", negate = true }
+]
+
+# ============================================
+# DRUPAL CONFIGURATION
+# ============================================
+
+[[vhosts]]
+domains = ["drupal.example.com"]
+priority = 100
+root = "/var/www/drupal"
+index_files = ["index.php"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+socket_path = "/run/php/php8.3-fpm-drupal.sock"
+document_root = "/var/www/drupal"
+
+[vhosts.backend.phpfpm.params]
+PHP_VALUE = "memory_limit=384M"
+PHP_ADMIN_VALUE = "upload_max_filesize=50M"
+PHP_ADMIN_VALUE = "post_max_size=50M"
+
+# Drupal clean URLs
+[[vhosts.rewrites]]
+pattern = "^/(.*)$"
+replacement = "/index.php?q=$1"
+conditions = [
+    { type = "file", path = "${request_filename}", negate = true },
+    { type = "directory", path = "${request_filename}", negate = true }
+]
+
+# Block access to private files
+[[vhosts.rewrites]]
+pattern = "^/sites/.*/private/"
+replacement = "-"
+flags = ["F"]  # Forbidden
+
+# ============================================
+# SYMFONY APPLICATION
+# ============================================
+
+[[vhosts]]
+domains = ["symfony.example.com"]
+priority = 100
+root = "/var/www/symfony/public"
+index_files = ["index.php"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+tcp_addr = "unix:/run/php/php8.3-fpm-symfony.sock"
+document_root = "/var/www/symfony/public"
+script_filename = "/var/www/symfony/public/index.php"  # Front controller
+
+[vhosts.backend.phpfpm.params]
+APP_ENV = "prod"
+APP_SECRET = "${APP_SECRET}"
+DATABASE_URL = "mysql://user:pass@localhost/symfony"
+
+# Symfony routing
+[[vhosts.rewrites]]
+pattern = "^/(.*)$"
+replacement = "/index.php/$1"
+conditions = [
+    { type = "file", path = "${request_filename}", negate = true }
+]
+
+# ============================================
+# MAGENTO 2 CONFIGURATION
+# ============================================
+
+[[vhosts]]
+domains = ["shop.example.com"]
+priority = 100
+root = "/var/www/magento2/pub"
+index_files = ["index.php"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+socket_path = "/run/php/php8.2-fpm.sock"  # Magento 2 compatibility
+document_root = "/var/www/magento2/pub"
+
+[vhosts.backend.phpfpm.params]
+PHP_VALUE = "memory_limit=2G"
+PHP_VALUE = "max_execution_time=18000"
+MAGE_MODE = "production"
+
+# Magento 2 rewrites
+[[vhosts.rewrites]]
+pattern = "^/static/(version[0-9]+/)?(.*)$"
+replacement = "/static/$2"
+
+[[vhosts.rewrites]]
+pattern = "^/media/(.*)$"
+replacement = "/media/$1"
+
+[[vhosts.rewrites]]
+pattern = ".*"
+replacement = "/index.php"
+conditions = [
+    { type = "file", path = "${request_filename}", negate = true }
+]
+
+# ============================================
+# NEXTCLOUD CONFIGURATION
+# ============================================
+
+[[vhosts]]
+domains = ["cloud.example.com"]
+priority = 100
+root = "/var/www/nextcloud"
+index_files = ["index.php", "index.html"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+socket_path = "/run/php/php8.3-fpm-nextcloud.sock"
+document_root = "/var/www/nextcloud"
+connect_timeout = 60
+read_timeout = 300  # Large file uploads
+write_timeout = 300
+
+[vhosts.backend.phpfpm.params]
+PHP_VALUE = "upload_max_filesize=10G"
+PHP_VALUE = "post_max_size=10G"
+PHP_VALUE = "max_input_time=3600"
+PHP_VALUE = "max_execution_time=3600"
+
+# Security headers for Nextcloud
+[vhosts.headers]
+"Strict-Transport-Security" = "max-age=15552000; includeSubDomains"
+"X-Content-Type-Options" = "nosniff"
+"X-Frame-Options" = "SAMEORIGIN"
+"X-Permitted-Cross-Domain-Policies" = "none"
+"X-Robots-Tag" = "none"
+"X-XSS-Protection" = "1; mode=block"
+
+# Nextcloud data directory protection
+[[vhosts.rewrites]]
+pattern = "^/data/"
+replacement = "-"
+flags = ["F"]
+
+# ============================================
+# MOODLE LMS CONFIGURATION
+# ============================================
+
+[[vhosts]]
+domains = ["learn.example.com"]
+priority = 100
+root = "/var/www/moodle"
+index_files = ["index.php"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+tcp_addr = "127.0.0.1:9002"
+document_root = "/var/www/moodle"
+
+[vhosts.backend.phpfpm.params]
+PHP_VALUE = "max_input_vars=5000"
+PHP_VALUE = "opcache.enable=1"
+PHP_VALUE = "opcache.memory_consumption=256"
+
+# ============================================
+# CUSTOM PHP APPLICATION
+# ============================================
+
+[[vhosts]]
+domains = ["app.example.com"]
+priority = 100
+root = "/var/www/custom-app"
+index_files = ["index.php", "app.php"]
+
+[vhosts.backend]
+type = "phpfpm"
+
+[vhosts.backend.phpfpm]
+# Custom PHP-FPM pool configuration
+socket_path = "/run/php/custom-app.sock"
+document_root = "/var/www/custom-app"
+
+# Override default FastCGI parameters
+[vhosts.backend.phpfpm.params]
+SCRIPT_FILENAME = "$document_root$fastcgi_script_name"
+QUERY_STRING = "$query_string"
+REQUEST_METHOD = "$request_method"
+CONTENT_TYPE = "$content_type"
+CONTENT_LENGTH = "$content_length"
+SCRIPT_NAME = "$fastcgi_script_name"
+REQUEST_URI = "$request_uri"
+DOCUMENT_URI = "$document_uri"
+DOCUMENT_ROOT = "$document_root"
+SERVER_PROTOCOL = "$server_protocol"
+GATEWAY_INTERFACE = "CGI/1.1"
+SERVER_SOFTWARE = "miwidothttp/1.0"
+REMOTE_ADDR = "$remote_addr"
+REMOTE_PORT = "$remote_port"
+SERVER_ADDR = "$server_addr"
+SERVER_PORT = "$server_port"
+SERVER_NAME = "$server_name"
+HTTPS = "$https"
+
+# Custom rewrite rules
+[[vhosts.rewrites]]
+pattern = "^/api/(.*)$"
+replacement = "/api.php?endpoint=$1"
+
+[[vhosts.rewrites]]
+pattern = "^/admin/(.*)$"
+replacement = "/admin.php?page=$1"
+conditions = [
+    { type = "file", path = "/var/www/custom-app/admin.php", exists = true }
+]
+
+# ============================================
+# PHP-FPM POOL MANAGEMENT
+# ============================================
+
+# Separate pool for high-traffic site
+[phpfpm_pools.high_traffic]
+listen = "/run/php/high-traffic.sock"
+user = "www-data"
+group = "www-data"
+pm = "dynamic"
+pm_max_children = 100
+pm_start_servers = 20
+pm_min_spare_servers = 10
+pm_max_spare_servers = 30
+pm_max_requests = 500
+
+# Pool for development
+[phpfpm_pools.development]
+listen = "127.0.0.1:9003"
+user = "developer"
+group = "developer"
+pm = "ondemand"
+pm_max_children = 10
+pm_process_idle_timeout = "10s"
+php_admin_value = { display_errors = "On", error_reporting = "E_ALL" }
+
+# Pool for background jobs
+[phpfpm_pools.background]
+listen = "/run/php/background.sock"
+user = "www-data"
+group = "www-data"
+pm = "static"
+pm_max_children = 5
+php_admin_value = { max_execution_time = "0", memory_limit = "512M" }
+
+# ============================================
+# PERFORMANCE OPTIMIZATION
+# ============================================
+
+[performance.phpfpm]
+# Connection pooling
+max_connections_per_pool = 50
+connection_timeout = 10
+idle_timeout = 60
+
+# Request buffering
+request_buffering = true
+request_buffer_size = 8192
+
+# Response buffering
+response_buffering = true
+response_buffer_size = 32768
+
+# FastCGI optimizations
+fastcgi_keep_conn = true
+fastcgi_ignore_client_abort = false
+fastcgi_intercept_errors = true
+
+# ============================================
+# MONITORING & HEALTH CHECKS
+# ============================================
+
+[monitoring.phpfpm]
+# PHP-FPM status page
+status_path = "/php-fpm-status"
+ping_path = "/php-fpm-ping"
+
+# Metrics collection
+collect_metrics = true
+metrics_interval = 60
+
+# Slow request logging
+slowlog = "/var/log/php-fpm/slow.log"
+request_slowlog_timeout = 5
+
+# ============================================
+# SECURITY CONFIGURATION
+# ============================================
+
+[security.phpfpm]
+# Restrict PHP execution
+allowed_extensions = [".php", ".phtml"]
+security_limit_extensions = ".php .php3 .php4 .php5 .php7"
+
+# Hide PHP version
+expose_php = false
+
+# Disable dangerous functions
+disable_functions = [
+    "exec",
+    "passthru",
+    "shell_exec",
+    "system",
+    "proc_open",
+    "popen",
+    "curl_exec",
+    "curl_multi_exec",
+    "parse_ini_file",
+    "show_source"
+]
+
+# Open basedir restrictions
+open_basedir = "/var/www:/tmp:/usr/share/php"
+
+# ============================================
+# CACHING CONFIGURATION
+# ============================================
+
+[cache.phpfpm]
+# OPcache settings
+opcache_enabled = true
+opcache_memory = 256
+opcache_strings = 16
+opcache_max_files = 10000
+opcache_validate_timestamps = false  # Production
+opcache_revalidate_freq = 0
+opcache_fast_shutdown = true
+
+# APCu settings
+apcu_enabled = true
+apcu_shm_size = 128
+apcu_ttl = 7200
+
+# File cache
+file_cache_enabled = true
+file_cache_dir = "/var/cache/php"

@@ -1,0 +1,399 @@
+# Cluster Configuration for miwidothttp
+# High-performance clustering with automatic failover and load distribution
+
+[server]
+http_port = 8080
+https_port = 8443
+
+# ============================================
+# CLUSTER CONFIGURATION
+# ============================================
+
+[cluster]
+enabled = true
+node_id = "node-1"  # Unique ID for this node
+cluster_name = "miwidothttp-prod"
+bind_addr = "0.0.0.0:7946"  # Gossip protocol bind address
+advertise_addr = "192.168.1.100:7946"  # Address advertised to other nodes
+grpc_port = 7947  # gRPC port for inter-node communication
+
+# Seed nodes for cluster discovery
+seed_nodes = [
+    "192.168.1.101:7946",
+    "192.168.1.102:7946",
+    "192.168.1.103:7946"
+]
+
+# Timing configuration
+gossip_interval_ms = 1000
+heartbeat_interval_ms = 5000
+election_timeout_ms = 30000
+data_sync_interval_ms = 10000
+
+# Cluster behavior
+replication_factor = 3  # Number of replicas for each key
+quorum_size = 2  # Minimum nodes for quorum
+enable_auto_join = true
+enable_auto_failover = true
+enable_auto_rebalance = true
+
+# Service discovery via etcd (optional)
+etcd_endpoints = [
+    "http://etcd1.internal:2379",
+    "http://etcd2.internal:2379",
+    "http://etcd3.internal:2379"
+]
+
+# ============================================
+# NODE CAPACITY CONFIGURATION
+# ============================================
+
+[cluster.capacity]
+# Define capacity for this node (auto-detected if not specified)
+cpu_cores = 16
+memory_mb = 32768  # 32GB
+disk_gb = 500
+network_mbps = 10000  # 10Gbps
+max_connections = 50000
+
+# Resource limits
+[cluster.limits]
+max_memory_percent = 80  # Don't use more than 80% memory
+max_cpu_percent = 90
+max_disk_percent = 85
+
+# ============================================
+# DISTRIBUTION STRATEGY
+# ============================================
+
+[cluster.distribution]
+algorithm = "consistent_hash"  # consistent_hash, rendezvous, jump_hash, maglev
+virtual_nodes = 150  # Virtual nodes per physical node
+hash_function = "xxhash"  # xxhash, murmur3, siphash
+
+# Node weights for load distribution
+[cluster.distribution.weights]
+"node-1" = 1.0
+"node-2" = 1.5  # This node has more capacity
+"node-3" = 1.0
+"node-4" = 0.5  # This node has less capacity
+
+# Affinity rules for specific keys
+[[cluster.distribution.affinity_rules]]
+key_pattern = "session:*"
+preferred_nodes = ["node-1", "node-2"]  # Prefer these nodes
+sticky = true  # Keep on same node if possible
+
+[[cluster.distribution.affinity_rules]]
+key_pattern = "static:*"
+required_nodes = ["node-3", "node-4"]  # Must be on these nodes
+cache_locally = true
+
+[[cluster.distribution.affinity_rules]]
+key_pattern = "temp:*"
+excluded_nodes = ["node-1"]  # Never place on these nodes
+
+# ============================================
+# CONSENSUS CONFIGURATION (Raft)
+# ============================================
+
+[cluster.consensus]
+enable_leader_election = true
+election_timeout_min_ms = 150
+election_timeout_max_ms = 300
+heartbeat_interval_ms = 50
+snapshot_interval = 1000  # Snapshot after N log entries
+max_log_entries = 10000
+
+# Leader responsibilities
+[cluster.consensus.leader]
+enable_config_management = true
+enable_cluster_coordination = true
+enable_health_monitoring = true
+decision_timeout_ms = 5000
+
+# ============================================
+# REPLICATION CONFIGURATION
+# ============================================
+
+[cluster.replication]
+mode = "async"  # sync, async, semi-sync
+consistency_level = "quorum"  # one, quorum, all
+replication_timeout_ms = 1000
+max_replication_lag_ms = 5000
+
+# What to replicate
+[cluster.replication.data]
+sessions = true
+cache = true
+rate_limits = true
+ssl_certificates = true
+configuration = true
+metrics = false  # Too much data
+
+# Conflict resolution
+[cluster.replication.conflicts]
+strategy = "last_write_wins"  # last_write_wins, vector_clock, crdt
+vector_clock_enabled = false
+crdt_type = "g_counter"  # For distributed counters
+
+# ============================================
+# HEALTH MONITORING
+# ============================================
+
+[cluster.health]
+check_interval_ms = 10000
+timeout_ms = 5000
+unhealthy_threshold = 3  # Failures before marking unhealthy
+healthy_threshold = 2  # Successes before marking healthy
+
+# Health check endpoints
+[cluster.health.checks]
+http_endpoint = "/cluster/health"
+grpc_endpoint = "health.Check"
+custom_script = "/usr/local/bin/health_check.sh"
+
+# Failure detection
+[cluster.health.failure_detection]
+algorithm = "phi_accrual"  # phi_accrual, heartbeat, swim
+phi_threshold = 8.0
+sampling_window_ms = 60000
+min_std_deviation_ms = 100
+
+# ============================================
+# FAILOVER CONFIGURATION
+# ============================================
+
+[cluster.failover]
+automatic = true
+detection_time_ms = 10000  # Time to detect failure
+failover_time_ms = 5000  # Time to complete failover
+max_failover_attempts = 3
+
+# Failover strategies
+[cluster.failover.strategies]
+session_migration = "sticky"  # sticky, redistribute, drain
+traffic_redirection = "immediate"  # immediate, gradual, manual
+state_transfer = "lazy"  # eager, lazy, on_demand
+
+# Fencing (prevent split-brain)
+[cluster.failover.fencing]
+enabled = true
+method = "network"  # network, storage, power
+quorum_based = true
+min_quorum_size = 2
+
+# ============================================
+# INTER-NODE COMMUNICATION
+# ============================================
+
+[cluster.communication]
+protocol = "grpc"  # grpc, http2, custom_tcp
+compression = "snappy"  # none, gzip, snappy, lz4
+encryption = "tls"  # none, tls, noise
+
+# TLS configuration for cluster communication
+[cluster.communication.tls]
+cert_file = "/etc/miwidothttp/cluster-cert.pem"
+key_file = "/etc/miwidothttp/cluster-key.pem"
+ca_file = "/etc/miwidothttp/cluster-ca.pem"
+verify_peer = true
+client_auth = "required"  # none, optional, required
+
+# Message batching
+[cluster.communication.batching]
+enabled = true
+max_batch_size = 100
+max_batch_bytes = 1048576  # 1MB
+batch_timeout_ms = 10
+
+# ============================================
+# CLUSTER METRICS & MONITORING
+# ============================================
+
+[cluster.metrics]
+enabled = true
+collection_interval_ms = 10000
+retention_hours = 168  # 1 week
+
+# Metrics to collect
+[cluster.metrics.collect]
+node_stats = true
+distribution_stats = true
+replication_lag = true
+consensus_metrics = true
+network_latency = true
+resource_usage = true
+
+# Metrics aggregation
+[cluster.metrics.aggregation]
+method = "distributed"  # local, centralized, distributed
+aggregation_nodes = ["node-1", "node-2"]  # Nodes that aggregate metrics
+push_to_prometheus = true
+prometheus_endpoint = "http://prometheus.internal:9090/metrics"
+
+# ============================================
+# CLUSTER OPERATIONS
+# ============================================
+
+[cluster.operations]
+# Auto-scaling
+enable_auto_scaling = true
+scale_up_threshold = 0.8  # 80% resource usage
+scale_down_threshold = 0.3  # 30% resource usage
+scaling_cooldown_ms = 300000  # 5 minutes
+
+# Maintenance mode
+[cluster.operations.maintenance]
+enabled = false
+drain_timeout_ms = 60000
+allow_reads = true
+allow_writes = false
+redirect_writes_to = "node-2"
+
+# Rolling updates
+[cluster.operations.updates]
+strategy = "rolling"  # rolling, blue_green, canary
+max_unavailable = 1
+max_surge = 1
+update_delay_ms = 30000
+
+# ============================================
+# DISTRIBUTED RATE LIMITING
+# ============================================
+
+[cluster.rate_limiting]
+enabled = true
+algorithm = "token_bucket"  # token_bucket, sliding_window, fixed_window
+sync_interval_ms = 1000
+sync_method = "gossip"  # gossip, broadcast, centralized
+
+# Global limits (across all nodes)
+[cluster.rate_limiting.global]
+requests_per_second = 100000
+requests_per_minute = 5000000
+max_burst = 10000
+
+# Per-node limits
+[cluster.rate_limiting.per_node]
+requests_per_second = 25000
+requests_per_minute = 1250000
+max_burst = 2500
+
+# ============================================
+# DISTRIBUTED CACHING
+# ============================================
+
+[cluster.cache]
+enabled = true
+backend = "redis"  # redis, memcached, hazelcast
+consistency = "eventual"  # strong, eventual, weak
+
+# Redis cluster configuration
+[cluster.cache.redis]
+mode = "cluster"  # standalone, sentinel, cluster
+nodes = [
+    "redis1.internal:6379",
+    "redis2.internal:6379",
+    "redis3.internal:6379"
+]
+password = "your-redis-password"
+db = 0
+pool_size = 50
+
+# Cache invalidation
+[cluster.cache.invalidation]
+method = "broadcast"  # broadcast, gossip, pubsub
+channels = ["cache_invalidation"]
+ttl_seconds = 3600
+
+# ============================================
+# DISTRIBUTED SESSIONS
+# ============================================
+
+[cluster.sessions]
+storage = "redis"  # redis, cassandra, dynamodb
+replication = "async"
+consistency = "eventual"
+ttl_seconds = 3600
+sticky_sessions = true
+
+# Session affinity
+[cluster.sessions.affinity]
+enabled = true
+method = "ip_hash"  # ip_hash, cookie, header
+cookie_name = "_cluster_node"
+header_name = "X-Cluster-Node"
+
+# ============================================
+# GEOGRAPHIC DISTRIBUTION
+# ============================================
+
+[cluster.geo]
+enabled = true
+region = "us-east-1"
+availability_zone = "us-east-1a"
+datacenter = "dc1"
+
+# Cross-region replication
+[cluster.geo.replication]
+enabled = true
+target_regions = ["us-west-2", "eu-west-1"]
+replication_lag_threshold_ms = 100
+conflict_resolution = "region_priority"
+
+# Region priorities for conflict resolution
+[cluster.geo.region_priority]
+"us-east-1" = 1
+"us-west-2" = 2
+"eu-west-1" = 3
+
+# ============================================
+# CLUSTER SECURITY
+# ============================================
+
+[cluster.security]
+enable_authentication = true
+enable_authorization = true
+enable_audit_logging = true
+
+# Authentication
+[cluster.security.auth]
+method = "mtls"  # mtls, token, jwt
+shared_secret = "your-cluster-secret"
+token_rotation_hours = 24
+
+# Authorization
+[cluster.security.authz]
+model = "rbac"  # rbac, abac
+policy_file = "/etc/miwidothttp/cluster-policy.yaml"
+
+# Audit logging
+[cluster.security.audit]
+log_file = "/var/log/miwidothttp/cluster-audit.log"
+log_level = "info"
+include_payload = false
+max_file_size_mb = 100
+max_files = 10
+
+# ============================================
+# DEBUGGING & TROUBLESHOOTING
+# ============================================
+
+[cluster.debug]
+enable_debug_endpoints = false
+enable_profiling = false
+enable_tracing = true
+
+# Distributed tracing
+[cluster.debug.tracing]
+backend = "jaeger"  # jaeger, zipkin, datadog
+sampling_rate = 0.001  # 0.1%
+jaeger_endpoint = "http://jaeger.internal:14268/api/traces"
+
+# Cluster diagnostics
+[cluster.debug.diagnostics]
+enable_network_diagnostics = true
+enable_consensus_diagnostics = true
+enable_replication_diagnostics = true
+diagnostics_port = 7948

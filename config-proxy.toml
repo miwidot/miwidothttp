@@ -1,0 +1,421 @@
+# Comprehensive Proxy Configuration
+
+[server]
+http_port = 8080
+https_port = 8443
+
+# ============================================
+# REVERSE PROXY CONFIGURATION
+# ============================================
+
+[proxy]
+mode = "reverse"  # reverse, forward, transparent, socks4, socks5
+
+# Connection pooling
+[proxy.connection_pool]
+max_idle_per_host = 32
+idle_timeout_seconds = 90
+max_lifetime_seconds = 3600
+http2 = true
+keep_alive = true
+
+# Header management
+[proxy.headers]
+preserve_host = false
+add_forwarded_headers = true
+add_real_ip = true
+add_proxy_headers = true
+remove_headers = ["Connection", "Upgrade", "Proxy-Connection"]
+via_header = "miwidothttp/1.0"
+
+[proxy.headers.add_headers]
+X-Proxy-Server = "miwidothttp"
+X-Cache-Status = "MISS"
+
+# Timeouts
+[proxy.timeout]
+connect_timeout_seconds = 10
+read_timeout_seconds = 30
+write_timeout_seconds = 30
+idle_timeout_seconds = 90
+
+# Limits
+[proxy.limits]
+max_request_size = 104857600  # 100MB
+max_response_size = 104857600 # 100MB
+max_concurrent_connections = 10000
+rate_limit_per_ip = 1000
+bandwidth_limit_kbps = 10000
+
+# Logging
+[proxy.logging]
+log_requests = true
+log_responses = false
+log_headers = false
+log_body = false
+max_body_size = 4096
+
+# ============================================
+# FORWARD PROXY CONFIGURATION  
+# ============================================
+
+# Forward proxy server
+[[proxy_servers]]
+mode = "forward"
+bind_addr = "127.0.0.1:3128"  # Standard proxy port
+
+[proxy_servers.authentication]
+auth_type = "basic"
+username = "proxyuser"
+password = "proxypass"
+realm = "Forward Proxy"
+
+# Upstream proxy chaining
+[proxy_servers.upstream_proxy]
+url = "http://upstream.proxy.com:8080"
+use_for_https = true
+
+[proxy_servers.upstream_proxy.auth]
+auth_type = "basic"
+username = "upstream_user"
+password = "upstream_pass"
+
+# ============================================
+# SOCKS PROXY CONFIGURATION
+# ============================================
+
+# SOCKS5 proxy server
+[[proxy_servers]]
+mode = "socks5"
+bind_addr = "127.0.0.1:1080"  # Standard SOCKS port
+
+[proxy_servers.authentication]
+auth_type = "basic"  # SOCKS5 username/password auth
+username = "socksuser"
+password = "sockspass"
+
+# SOCKS4 proxy server  
+[[proxy_servers]]
+mode = "socks4"
+bind_addr = "127.0.0.1:1081"
+
+# ============================================
+# LOAD BALANCING CONFIGURATION
+# ============================================
+
+# Load balanced backend pools
+[load_balancers.api_pool]
+strategy = "round_robin"  # round_robin, least_conn, ip_hash, weighted
+health_check_interval = 30
+health_check_timeout = 5
+health_check_path = "/health"
+
+[[load_balancers.api_pool.backends]]
+url = "http://api1.internal:8080"
+weight = 100
+max_fails = 3
+fail_timeout = 30
+
+[[load_balancers.api_pool.backends]]
+url = "http://api2.internal:8080"
+weight = 100
+max_fails = 3
+fail_timeout = 30
+
+[[load_balancers.api_pool.backends]]
+url = "http://api3.internal:8080"
+weight = 150  # Higher weight = more traffic
+max_fails = 3
+fail_timeout = 30
+
+# ============================================
+# VIRTUAL HOST PROXY CONFIGURATION
+# ============================================
+
+# API Gateway with authentication
+[[vhosts]]
+domains = ["api.example.com"]
+priority = 100
+
+[vhosts.proxy]
+mode = "reverse"
+upstream_pool = "api_pool"
+preserve_host = true
+add_request_id = true
+
+[vhosts.proxy.auth]
+required = true
+type = "bearer"
+validate_url = "http://auth.internal/validate"
+
+[vhosts.proxy.rate_limiting]
+requests_per_minute = 1000
+burst_size = 50
+by_ip = true
+by_user = true
+
+[vhosts.proxy.caching]
+enabled = true
+cache_duration = 300  # 5 minutes
+cache_key_includes = ["path", "query", "authorization"]
+vary_headers = ["Accept", "Accept-Encoding"]
+
+# WebSocket proxy
+[[vhosts]]
+domains = ["ws.example.com"]
+priority = 100
+
+[vhosts.proxy]
+mode = "websocket"
+upstream = "ws://websocket.internal:8080"
+ping_interval = 30
+pong_timeout = 10
+max_frame_size = 1048576  # 1MB
+
+# Static content with caching
+[[vhosts]]
+domains = ["cdn.example.com"]
+priority = 100
+
+[vhosts.proxy]
+mode = "reverse"
+upstream = "http://storage.internal:8080"
+cache_static_files = true
+cache_duration = 86400  # 24 hours
+
+[vhosts.proxy.compression]
+enabled = true
+types = ["text/*", "application/json", "application/javascript"]
+level = 6  # gzip level
+
+# ============================================
+# SSL TERMINATION
+# ============================================
+
+[ssl_termination]
+enabled = true
+cipher_suites = [
+    "ECDHE-ECDSA-AES256-GCM-SHA384",
+    "ECDHE-RSA-AES256-GCM-SHA384",
+    "ECDHE-ECDSA-CHACHA20-POLY1305",
+    "ECDHE-RSA-CHACHA20-POLY1305"
+]
+protocols = ["TLSv1.2", "TLSv1.3"]
+session_timeout = 300
+session_cache_size = 10000
+
+[ssl_termination.hsts]
+enabled = true
+max_age = 31536000  # 1 year
+include_subdomains = true
+preload = true
+
+[ssl_termination.ocsp]
+stapling = true
+responder_url = "http://ocsp.digicert.com"
+cache_timeout = 3600
+
+# ============================================
+# PROXY PROTOCOL SUPPORT
+# ============================================
+
+[proxy_protocol]
+version = 2  # 1 or 2
+enabled = true
+trusted_proxies = [
+    "192.168.1.0/24",
+    "10.0.0.0/8",
+    "127.0.0.1/32"
+]
+
+# ============================================
+# CIRCUIT BREAKER CONFIGURATION
+# ============================================
+
+[circuit_breaker]
+enabled = true
+failure_threshold = 5
+recovery_timeout = 60
+success_threshold = 3
+timeout = 10
+
+[circuit_breaker.monitoring]
+metrics_endpoint = "/circuit-breaker/metrics"
+alert_on_open = true
+alert_webhook = "https://alerts.example.com/webhook"
+
+# ============================================
+# REQUEST/RESPONSE TRANSFORMATION
+# ============================================
+
+[transformations]
+
+# Request transformations
+[[transformations.request]]
+match_path = "/api/v1/*"
+add_headers = { "X-API-Version" = "v1", "X-Source" = "proxy" }
+remove_headers = ["X-Forwarded-For"]  # Override default
+
+[[transformations.request]]
+match_path = "/legacy/*"
+rewrite_path = "/api/v2${path}"  # /legacy/users -> /api/v2/legacy/users
+
+# Response transformations
+[[transformations.response]]
+match_status = [200, 201]
+add_headers = { "X-Cache-Status" = "HIT", "X-Response-Time" = "${response_time}ms" }
+
+[[transformations.response]]
+match_content_type = "application/json"
+modify_body = true
+body_transformations = [
+    { type = "json_add_field", field = "server_timestamp", value = "${timestamp}" },
+    { type = "json_remove_field", field = "internal_id" }
+]
+
+# ============================================
+# MONITORING AND METRICS
+# ============================================
+
+[monitoring]
+enabled = true
+metrics_endpoint = "/proxy/metrics"
+health_endpoint = "/proxy/health"
+
+[monitoring.prometheus]
+enabled = true
+namespace = "miwidothttp_proxy"
+include_request_duration = true
+include_response_size = true
+include_active_connections = true
+
+[monitoring.alerts]
+high_error_rate_threshold = 0.05  # 5%
+high_latency_threshold_ms = 1000
+low_success_rate_threshold = 0.95  # 95%
+alert_cooldown_seconds = 300
+
+# ============================================
+# GEOGRAPHIC ROUTING
+# ============================================
+
+[geo_routing]
+enabled = true
+default_region = "us-east-1"
+
+[geo_routing.regions.us-east-1]
+backends = ["http://api-us-east.internal:8080"]
+countries = ["US", "CA"]
+
+[geo_routing.regions.eu-west-1]
+backends = ["http://api-eu-west.internal:8080"]
+countries = ["GB", "FR", "DE", "IT", "ES"]
+
+[geo_routing.regions.ap-southeast-1]  
+backends = ["http://api-ap-southeast.internal:8080"]
+countries = ["SG", "MY", "TH", "ID"]
+
+# ============================================
+# CONTENT-BASED ROUTING
+# ============================================
+
+[content_routing]
+
+# Route based on User-Agent
+[[content_routing.rules]]
+condition = { header = "User-Agent", pattern = ".*Mobile.*" }
+backend_pool = "mobile_backend_pool"
+priority = 100
+
+[[content_routing.rules]]
+condition = { header = "User-Agent", pattern = ".*Bot.*" }
+backend_pool = "bot_backend_pool"
+priority = 90
+
+# Route based on request content
+[[content_routing.rules]]
+condition = { content_type = "application/json", body_contains = "batch" }
+backend_pool = "batch_processing_pool"
+priority = 80
+
+# Route based on query parameters
+[[content_routing.rules]]
+condition = { query_param = "version", value = "v2" }
+backend_pool = "v2_backend_pool"
+priority = 70
+
+# ============================================
+# SECURITY CONFIGURATION
+# ============================================
+
+[security]
+
+# DDoS protection
+[security.ddos]
+enabled = true
+requests_per_second_threshold = 1000
+block_duration_seconds = 300
+whitelist_ips = ["192.168.1.0/24"]
+
+# Bot protection
+[security.bot_protection]
+enabled = true
+challenge_suspicious_requests = true
+block_known_bad_bots = true
+rate_limit_bots = true
+
+# Request validation
+[security.validation]
+max_headers = 50
+max_header_size = 8192
+max_uri_length = 8192
+block_malformed_requests = true
+
+# ============================================
+# CACHING CONFIGURATION
+# ============================================
+
+[caching]
+enabled = true
+default_ttl = 3600  # 1 hour
+max_size_mb = 1024  # 1GB
+storage_type = "memory"  # memory, redis, file
+
+[caching.redis]
+url = "redis://localhost:6379/1"
+key_prefix = "proxy_cache:"
+
+[caching.rules]
+# Cache API responses
+[[caching.rules.paths]]
+pattern = "/api/v1/users/*"
+ttl = 300  # 5 minutes
+cache_post = false  # Don't cache POST requests
+
+[[caching.rules.paths]]
+pattern = "/static/*"
+ttl = 86400  # 24 hours
+cache_all_methods = true
+
+# ============================================
+# LOGGING CONFIGURATION
+# ============================================
+
+[proxy_logging]
+format = "combined"  # common, combined, json, custom
+access_log = "logs/proxy_access.log"
+error_log = "logs/proxy_error.log"
+
+[proxy_logging.custom_format]
+template = "${remote_addr} - ${remote_user} [${time_local}] \"${request}\" ${status} ${body_bytes_sent} \"${http_referer}\" \"${http_user_agent}\" rt=${request_time} uct=${upstream_connect_time} urt=${upstream_response_time}"
+
+[proxy_logging.json_fields]
+timestamp = true
+request_id = true
+method = true
+uri = true
+status = true
+response_size = true
+response_time = true
+upstream_addr = true
+user_agent = true

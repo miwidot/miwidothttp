@@ -1,0 +1,342 @@
+# Advanced Rewrite Rules Configuration
+
+[server]
+http_port = 8080
+https_port = 8443
+enable_https = true
+
+# ============================================
+# E-COMMERCE SITE WITH SEO-FRIENDLY URLs
+# ============================================
+[[vhosts]]
+domains = ["shop.example.com"]
+priority = 100
+
+# Rewrite rules for clean URLs
+[[vhosts.rewrites]]
+# Remove .php extension
+pattern = "^/([^/]+)\\.php$"
+replacement = "/$1"
+flags = ["permanent"]
+
+[[vhosts.rewrites]]
+# Product URLs: /product/123/name -> /products.php?id=123&slug=name
+pattern = "^/product/([0-9]+)/([^/]+)/?$"
+replacement = "/products.php?id=$1&slug=$2"
+flags = ["last", "qsappend"]
+
+[[vhosts.rewrites]]
+# Category URLs: /category/electronics -> /category.php?name=electronics
+pattern = "^/category/([^/]+)/?$"
+replacement = "/category.php?name=$1"
+flags = ["last"]
+
+[[vhosts.rewrites]]
+# Search with clean URLs: /search/keyword -> /search.php?q=keyword
+pattern = "^/search/([^/]+)/?$"
+replacement = "/search.php?q=$1"
+flags = ["last"]
+
+[[vhosts.rewrites]]
+# Force HTTPS for checkout pages
+pattern = "^/checkout/(.*)$"
+replacement = "https://$host/checkout/$1"
+flags = ["permanent"]
+[[vhosts.rewrites.conditions]]
+test_string = "$scheme"
+pattern = "^http$"
+
+[[vhosts.rewrites]]
+# Mobile redirect based on user agent
+pattern = "^(.*)$"
+replacement = "https://m.shop.example.com$1"
+flags = ["redirect"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_user_agent"
+pattern = "Mobile|Android|iPhone"
+flags = ["nocase"]
+
+# ============================================
+# WORDPRESS SITE WITH PERMALINKS
+# ============================================
+[[vhosts]]
+domains = ["blog.example.com"]
+priority = 100
+root = "/var/www/wordpress"
+
+[[vhosts.rewrites]]
+# WordPress permalinks: /2025/08/post-title -> /index.php
+pattern = "^/([0-9]{4})/([0-9]{2})/([^/]+)/?$"
+replacement = "/index.php?year=$1&month=$2&name=$3"
+flags = ["last"]
+
+[[vhosts.rewrites]]
+# WordPress pages: /about -> /index.php?pagename=about
+pattern = "^/([^/]+)/?$"
+replacement = "/index.php?pagename=$1"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "/var/www/wordpress/$1"
+pattern = ".*"
+flags = ["not", "file", "not", "dir"]
+
+[[vhosts.rewrites]]
+# WordPress admin force SSL
+pattern = "^/wp-admin/(.*)$"
+replacement = "https://$host/wp-admin/$1"
+flags = ["permanent"]
+[[vhosts.rewrites.conditions]]
+test_string = "$scheme"
+pattern = "^http$"
+
+# ============================================
+# API WITH VERSION ROUTING
+# ============================================
+[[vhosts]]
+domains = ["api.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# API versioning: /v1/users -> /api/v1/users.php
+pattern = "^/v([0-9]+)/([^/]+)/?$"
+replacement = "/api/v$1/$2.php"
+flags = ["last"]
+
+[[vhosts.rewrites]]
+# API key validation - redirect to error if no key
+pattern = "^/v[0-9]+/.*$"
+replacement = "/error/401"
+flags = ["forbidden"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_x_api_key"
+pattern = "^$"
+
+[[vhosts.rewrites]]
+# Rate limit by IP - redirect heavy users
+pattern = "^(.*)$"
+replacement = "/error/429"
+flags = ["forbidden"]
+[[vhosts.rewrites.conditions]]
+test_string = "$remote_addr"
+pattern = "192\\.168\\.1\\.100"  # Blocked IP
+
+# ============================================
+# STATIC SITE WITH CACHE BUSTING
+# ============================================
+[[vhosts]]
+domains = ["static.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Cache busting: /css/style.v123.css -> /css/style.css
+pattern = "^/(css|js|img)/(.+)\\.v[0-9]+\\.(.+)$"
+replacement = "/$1/$2.$3"
+flags = ["last"]
+
+[[vhosts.rewrites]]
+# Serve .html files without extension
+pattern = "^/([^/]+)/?$"
+replacement = "/$1.html"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "/var/www/static/$1.html"
+pattern = ".*"
+flags = ["file"]
+
+[[vhosts.rewrites]]
+# Redirect old URLs to new structure
+pattern = "^/old/(.*)$"
+replacement = "/new/$1"
+flags = ["permanent"]
+
+# ============================================
+# MULTI-LANGUAGE SITE
+# ============================================
+[[vhosts]]
+domains = ["www.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Language detection from URL: /en/page -> /page.php?lang=en
+pattern = "^/(en|es|fr|de)/(.*)$"
+replacement = "/$2?lang=$1"
+flags = ["last", "qsappend"]
+
+[[vhosts.rewrites]]
+# Redirect to language based on Accept-Language header
+pattern = "^/$"
+replacement = "/en/"
+flags = ["redirect"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_accept_language"
+pattern = "^en"
+flags = ["nocase"]
+
+[[vhosts.rewrites]]
+pattern = "^/$"
+replacement = "/es/"
+flags = ["redirect"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_accept_language"
+pattern = "^es"
+flags = ["nocase"]
+
+# ============================================
+# MAINTENANCE MODE
+# ============================================
+[[vhosts]]
+domains = ["maintenance.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Redirect all requests to maintenance page except admin IPs
+pattern = "^(.*)$"
+replacement = "/maintenance.html"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "$remote_addr"
+pattern = "^(192\\.168\\.1\\.1|10\\.0\\.0\\.1)$"
+flags = ["not"]
+
+# ============================================
+# URL SHORTENER
+# ============================================
+[[vhosts]]
+domains = ["short.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Short URLs: /abc123 -> /redirect.php?code=abc123
+pattern = "^/([a-zA-Z0-9]{6})$"
+replacement = "/redirect.php?code=$1"
+flags = ["last"]
+
+[[vhosts.rewrites]]
+# Admin panel requires HTTPS
+pattern = "^/admin/(.*)$"
+replacement = "https://$host/admin/$1"
+flags = ["permanent"]
+[[vhosts.rewrites.conditions]]
+test_string = "$scheme"
+pattern = "^http$"
+
+# ============================================
+# LEGACY SYSTEM MIGRATION
+# ============================================
+[[vhosts]]
+domains = ["legacy.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Redirect old ASP pages to new PHP
+pattern = "^/(.+)\\.asp$"
+replacement = "/$1.php"
+flags = ["permanent"]
+
+[[vhosts.rewrites]]
+# Map old structure to new
+pattern = "^/products/category\\.asp\\?id=([0-9]+)$"
+replacement = "/shop/category/$1"
+flags = ["permanent"]
+
+[[vhosts.rewrites]]
+# Preserve query strings during migration
+pattern = "^/search\\.asp$"
+replacement = "/search"
+flags = ["permanent", "qsappend"]
+
+# ============================================
+# A/B TESTING WITH REWRITES
+# ============================================
+[[vhosts]]
+domains = ["test.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Route 50% of traffic to variant B based on IP hash
+pattern = "^/landing$"
+replacement = "/landing-b"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "$remote_addr"
+pattern = "[02468]$"  # Even last digit of IP
+
+[[vhosts.rewrites]]
+# Cookie-based A/B testing
+pattern = "^/experiment/(.*)$"
+replacement = "/variant-b/$1"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_cookie"
+pattern = "variant=b"
+
+# ============================================
+# SECURITY REWRITES
+# ============================================
+[[vhosts]]
+domains = ["secure.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Block access to sensitive files
+pattern = "^/\\.(git|env|htaccess)"
+replacement = "/403"
+flags = ["forbidden"]
+
+[[vhosts.rewrites]]
+# Prevent SQL injection attempts
+pattern = ".*(\\'|\\%27|\\%5C).*"
+replacement = "/security-blocked"
+flags = ["forbidden"]
+
+[[vhosts.rewrites]]
+# Block suspicious user agents
+pattern = "^(.*)$"
+replacement = "/blocked"
+flags = ["forbidden"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_user_agent"
+pattern = "bot|crawler|spider"
+flags = ["nocase", "not"]  # Block if NOT a known bot
+
+[[vhosts.rewrites]]
+# Require referrer for form submissions
+pattern = "^/submit$"
+replacement = "/error/403"
+flags = ["forbidden"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_referer"
+pattern = "^$"
+
+# ============================================
+# CDN AND ASSET OPTIMIZATION
+# ============================================
+[[vhosts]]
+domains = ["cdn.example.com"]
+priority = 100
+
+[[vhosts.rewrites]]
+# Serve WebP images to supported browsers
+pattern = "^(.+)\\.(jpg|jpeg|png)$"
+replacement = "$1.webp"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_accept"
+pattern = "image/webp"
+[[vhosts.rewrites.conditions]]
+test_string = "/var/www/cdn$1.webp"
+pattern = ".*"
+flags = ["file"]
+
+[[vhosts.rewrites]]
+# Gzip pre-compressed files
+pattern = "^(.+\\.(js|css))$"
+replacement = "$1.gz"
+flags = ["last"]
+[[vhosts.rewrites.conditions]]
+test_string = "$http_accept_encoding"
+pattern = "gzip"
+[[vhosts.rewrites.conditions]]
+test_string = "/var/www/cdn$1.gz"
+pattern = ".*"
+flags = ["file"]

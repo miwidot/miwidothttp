@@ -18,10 +18,15 @@ use tracing::{info, Level};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 mod config;
+mod error;
 mod logging;
+mod middleware;
 mod process;
 mod proxy;
+mod rewrite;
+mod session;
 mod ssl;
+mod vhost;
 
 use config::Config;
 use process::ProcessManager;
