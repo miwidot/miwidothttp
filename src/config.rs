@@ -10,8 +10,28 @@ pub struct Config {
     pub server: ServerConfig,
     pub ssl: SslConfig,
     pub cloudflare: CloudflareConfig,
+    pub cluster: Option<ClusterConfig>,
     pub logging: Option<LogConfig>,
     pub backends: HashMap<String, BackendConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ClusterConfig {
+    pub enabled: bool,
+    pub node_id: String,
+    pub bind_addr: String,
+    pub advertise_addr: String,
+    pub join_nodes: Vec<String>,
+    pub raft: RaftConfig,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RaftConfig {
+    pub enabled: bool,
+    pub bind_addr: String,
+    pub data_dir: String,
+    pub election_timeout: u64,
+    pub heartbeat_interval: u64,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -99,6 +119,20 @@ impl Default for Config {
                 email: None,
                 api_key: None,
             },
+            cluster: Some(ClusterConfig {
+                enabled: false,
+                node_id: "node-1".to_string(),
+                bind_addr: "0.0.0.0:7946".to_string(),
+                advertise_addr: "127.0.0.1:7946".to_string(),
+                join_nodes: vec![],
+                raft: RaftConfig {
+                    enabled: false,
+                    bind_addr: "0.0.0.0:8090".to_string(),
+                    data_dir: "/var/lib/miwidothttp/raft".to_string(),
+                    election_timeout: 150,
+                    heartbeat_interval: 50,
+                },
+            }),
             logging: Some(LogConfig::default()),
             backends: HashMap::new(),
         }

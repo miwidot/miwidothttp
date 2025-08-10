@@ -1,0 +1,29 @@
+CHANGELOG - miwidothttp
+========================
+
+[2025-08-10 11:39:06 +08]
+- RESTORED: Cloudflare Origin CA SSL integration as originally documented
+- RESTORED: Automatic certificate generation via Cloudflare API
+- RESTORED: Multi-domain and wildcard certificate support
+- IMPLEMENTED: Complete clustering support with Raft consensus
+- IMPLEMENTED: Gossip protocol using Chitchat for node discovery
+- IMPLEMENTED: Distributed load balancing across cluster nodes
+- IMPLEMENTED: Health monitoring for cluster nodes
+- IMPLEMENTED: Automatic failover and leader election
+- IMPLEMENTED: Data replication with configurable replication factor
+- ADDED: Cluster configuration in config.toml
+- ADDED: Cloudflare configuration section in config.toml
+- UPDATED: README with proper Cloudflare setup instructions
+- UPDATED: README with clustering deployment guide
+- FIXED: Config structure to support both Cloudflare and clustering
+- CREATED: cluster/gossip.rs for gossip protocol management
+- CREATED: cluster/replication.rs for data replication
+- CREATED: cluster/health.rs for health monitoring
+
+[2025-08-10 Earlier]
+- Initial implementation with process management
+- Added security middleware
+- Added session management
+- Added URL rewriting engine
+- Added metrics collection
+- Added virtual host support

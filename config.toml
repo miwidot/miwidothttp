@@ -3,24 +3,59 @@
 [server]
 http_port = 8080
 https_port = 8443
-bind_address = "0.0.0.0"
-static_dir = "./static"
+enable_https = true
+workers = 4
 
 [ssl]
-enabled = true
-cert_path = "./certs/server.crt"
-key_path = "./certs/server.key"
+# Enable automatic certificate generation via Cloudflare Origin CA
+auto_cert = true
+domains = ["example.com", "*.example.com"]
+# Alternatively, use existing certificates:
+# cert_path = "./certs/server.crt"
+# key_path = "./certs/server.key"
 
-# Backend configurations for virtual hosts
-# Example: Forward requests for api.example.com to localhost:3000
+[cloudflare]
+# Use either API token (recommended) or API key + email
+# Get your API token from: https://dash.cloudflare.com/profile/api-tokens
+api_token = "YOUR_CLOUDFLARE_API_TOKEN"
+# api_key = "YOUR_API_KEY"
+# email = "your-email@example.com"
+zone_id = "YOUR_ZONE_ID"
+
+# Cluster configuration for distributed deployment
+[cluster]
+enabled = true
+node_id = "node-1"
+# Gossip protocol binding
+bind_addr = "0.0.0.0:7946"
+advertise_addr = "10.0.0.1:7946"
+# Seeds for joining existing cluster
+join_nodes = []
+
+[cluster.raft]
+enabled = true
+bind_addr = "0.0.0.0:8090"
+data_dir = "/var/lib/miwidothttp/raft"
+election_timeout = 150
+heartbeat_interval = 50
+
+[logging]
+level = "info"
+format = "json"
+file = "/var/log/miwidothttp/server.log"
+
+# Backend configurations with process management
+[backends.static]
+url = "/"
+app_type = "static"
+
 [backends."api.example.com"]
-target = "http://localhost:3000"
+url = "/api"
+app_type = "nodejs"
 health_check = "/health"
 
-# Example: Forward requests for app.example.com to localhost:4000
-[backends."app.example.com"]
-target = "http://localhost:4000"
-
-# To test locally, add these to /etc/hosts:
-# 127.0.0.1 api.example.com
-# 127.0.0.1 app.example.com
+[backends."api.example.com".process]
+command = "node"
+args = ["app.js"]
+working_dir = "/app/nodejs"
+auto_restart = true
