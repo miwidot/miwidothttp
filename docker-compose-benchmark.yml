@@ -1,0 +1,147 @@
+version: '3.8'
+
+services:
+  # miwidothttp instance 1
+  miwidothttp-1:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miwidothttp-1
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./config-benchmark.toml:/etc/miwidothttp/config.toml:ro
+      - ./static-test:/var/www/html:ro
+    environment:
+      - RUST_LOG=error
+      - RUST_BACKTRACE=0
+    cpus: 2
+    mem_limit: 1g
+    networks:
+      - benchmark
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # miwidothttp instance 2
+  miwidothttp-2:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: miwidothttp-2
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./config-benchmark.toml:/etc/miwidothttp/config.toml:ro
+      - ./static-test:/var/www/html:ro
+    environment:
+      - RUST_LOG=error
+      - RUST_BACKTRACE=0
+    cpus: 2
+    mem_limit: 1g
+    networks:
+      - benchmark
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # nginx instance 1
+  nginx-1:
+    image: nginx:1.25-alpine
+    container_name: nginx-1
+    ports:
+      - "8083:80"
+    volumes:
+      - ./nginx-benchmark.conf:/etc/nginx/nginx.conf:ro
+      - ./static-test:/var/www/html:ro
+    cpus: 2
+    mem_limit: 1g
+    networks:
+      - benchmark
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # nginx instance 2
+  nginx-2:
+    image: nginx:1.25-alpine
+    container_name: nginx-2
+    ports:
+      - "8084:80"
+    volumes:
+      - ./nginx-benchmark.conf:/etc/nginx/nginx.conf:ro
+      - ./static-test:/var/www/html:ro
+    cpus: 2
+    mem_limit: 1g
+    networks:
+      - benchmark
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 65536
+
+  # Load balancer for miwidothttp
+  haproxy-miwidothttp:
+    image: haproxy:2.9-alpine
+    container_name: haproxy-miwidothttp
+    ports:
+      - "9001:80"
+    volumes:
+      - ./haproxy-miwidothttp.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - benchmark
+    depends_on:
+      - miwidothttp-1
+      - miwidothttp-2
+
+  # Load balancer for nginx
+  haproxy-nginx:
+    image: haproxy:2.9-alpine
+    container_name: haproxy-nginx
+    ports:
+      - "9002:80"
+    volumes:
+      - ./haproxy-nginx.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    networks:
+      - benchmark
+    depends_on:
+      - nginx-1
+      - nginx-2
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - benchmark
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  # Grafana for visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=redis-datasource
+    networks:
+      - benchmark
+    depends_on:
+      - prometheus
+
+networks:
+  benchmark:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

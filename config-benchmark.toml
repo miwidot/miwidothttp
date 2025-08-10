@@ -1,0 +1,77 @@
+# High-Performance Configuration for Benchmarking
+
+[server]
+http_port = 8080
+https_port = 8443
+enable_https = false  # Disable HTTPS for pure HTTP benchmarking
+workers = 16  # Use all CPU cores
+
+[performance]
+# Thread pool settings - optimal for high concurrency
+worker_threads = 32  # 2x CPU cores
+async_threads = 128
+connection_pool_size = 10000
+connection_idle_timeout = 60
+
+# Buffer sizes for maximum throughput
+read_buffer_size = 65536  # 64KB
+write_buffer_size = 65536  # 64KB
+max_header_buffer_size = 16384
+
+# HTTP/2 settings
+[performance.http2]
+initial_stream_window_size = 2097152  # 2MB
+initial_connection_window_size = 5242880  # 5MB
+max_concurrent_streams = 1000
+max_frame_size = 16384
+max_header_list_size = 16384
+
+# Keep-alive settings
+keep_alive = true
+keep_alive_timeout = 75
+keep_alive_requests = 1000
+
+# TCP optimizations
+tcp_nodelay = true
+tcp_fastopen = true
+tcp_quickack = true
+
+# Memory settings
+[performance.memory]
+preallocate_pools = true
+pool_sizes = { small = 1024, medium = 16384, large = 65536 }
+gc_interval = 60
+gc_threshold_mb = 100
+
+# Disable unnecessary features for benchmarking
+[logging]
+level = "error"  # Minimize logging overhead
+format = "compact"
+
+[security]
+# Disable security features for maximum performance in benchmark
+enable_rate_limiting = false
+enable_csrf = false
+enable_hsts = false
+
+[sessions]
+# Use memory backend for fastest performance
+backend = "memory"
+ttl_seconds = 3600
+
+[cache]
+# Enable aggressive caching
+enabled = true
+default_ttl = 3600
+max_size_mb = 1024
+
+# Static file serving (for benchmark)
+[static]
+enabled = true
+root = "/var/www/html"
+index_files = ["index.html"]
+compression = false  # Disable compression for raw throughput test
+
+# Cluster configuration for multi-node setup
+[cluster]
+enabled = false  # Disable for single-node benchmark

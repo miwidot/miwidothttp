@@ -1,16 +1,30 @@
-# Build stage
+# Build stage - optimized for performance
 FROM rust:1.75 as builder
 
 WORKDIR /app
 
+# Install protoc for gRPC
+RUN apt-get update && apt-get install -y protobuf-compiler
+
 # Copy manifest files
 COPY Cargo.toml Cargo.lock ./
+COPY build.rs ./
 
-# Copy source code
+# Create dummy main to cache dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN cargo build --release
+RUN rm -rf src
+
+# Copy actual source code
 COPY src ./src
 
-# Build release binary
-RUN cargo build --release
+# Build with all optimizations
+ENV CARGO_PROFILE_RELEASE_LTO=true
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=1
+ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=3
+ENV CARGO_PROFILE_RELEASE_PANIC=abort
+
+RUN cargo build --release --features full
 
 # Runtime stage
 FROM ubuntu:24.04
