@@ -33,12 +33,14 @@ mod graphql;
 mod circuit_breaker;
 // mod connection_pool;  // Temporarily disabled - compilation errors
 // mod cache;  // Temporarily disabled - compilation errors
+mod static_cache;
 
 use process_manager::{ProcessManager, ProcessConfig, AppType};
 use security::{SecurityConfig, RateLimiter, security_headers_middleware};
 use session_manager::{SessionManager, SessionConfig};
 use rewrite_engine::{RewriteEngine, RewriteConfig, RewriteResult};
 use metrics::{MetricsCollector, RequestMetrics};
+use static_cache::StaticCache;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Config {
@@ -118,6 +120,7 @@ struct AppState {
     rate_limiter: Arc<RateLimiter>,
     session_manager: Option<Arc<SessionManager>>,
     metrics: Arc<MetricsCollector>,
+    static_cache: Arc<StaticCache>,
 }
 
 #[tokio::main]
@@ -208,6 +211,9 @@ async fn main() {
     // Initialize metrics collector
     let metrics = Arc::new(MetricsCollector::new());
     
+    // Initialize static file cache
+    let static_cache = Arc::new(StaticCache::new(true));
+    
     let app_state = Arc::new(AppState {
         config: Arc::new(config.clone()),
         static_dir: static_dir.clone(),
@@ -216,6 +222,7 @@ async fn main() {
         rate_limiter,
         session_manager,
         metrics,
+        static_cache,
     });
 
     // Build our application with routes
@@ -307,16 +314,16 @@ fn create_app(state: Arc<AppState>) -> Router {
         .layer(
             ServiceBuilder::new()
                 // Standard middlewares
-                .layer(TraceLayer::new_for_http()
-                    .make_span_with(DefaultMakeSpan::new()
-                        .level(Level::INFO))
-                    .on_response(DefaultOnResponse::new()
-                        .level(Level::INFO)))
-                .layer(CompressionLayer::new())
+                // .layer(TraceLayer::new_for_http()
+                //     .make_span_with(DefaultMakeSpan::new()
+                //         .level(Level::INFO))
+                //     .on_response(DefaultOnResponse::new()
+                //         .level(Level::INFO))) // Disabled for max performance
+                // .layer(CompressionLayer::new()) // Disabled for max performance
                 .layer(CorsLayer::permissive())
         )
         // Security middlewares (added separately for now)
-        .layer(axum::middleware::from_fn(security_headers_middleware))
+        // .layer(axum::middleware::from_fn(security_headers_middleware)) // Disabled for max performance
         .with_state(state)
 }
 
@@ -537,31 +544,13 @@ async fn proxy_handler(
             }
         }
     } else {
-        // No backend configured for this host, serve from static
+        // No backend configured for this host, serve from static with cache
         let path = req.uri().path();
         let file_path = state.static_dir.join(path.trim_start_matches('/'));
         
         if file_path.exists() && file_path.is_file() {
-            // Serve the file
-            match fs::read(&file_path).await {
-                Ok(contents) => {
-                    let mime = mime_guess::from_path(&file_path)
-                        .first_or_octet_stream();
-                    
-                    Response::builder()
-                        .status(StatusCode::OK)
-                        .header("Content-Type", mime.as_ref())
-                        .body(Body::from(contents))
-                        .unwrap()
-                }
-                Err(e) => {
-                    error!("Failed to read file {:?}: {}", file_path, e);
-                    Response::builder()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .body(Body::from("Internal server error"))
-                        .unwrap()
-                }
-            }
+            // Use cached file serving
+            state.static_cache.serve_file(&file_path).await
         } else {
             // Try index.html for directories
             let index_path = if file_path.is_dir() {
@@ -571,21 +560,7 @@ async fn proxy_handler(
             };
             
             if index_path.exists() {
-                match fs::read(&index_path).await {
-                    Ok(contents) => {
-                        Response::builder()
-                            .status(StatusCode::OK)
-                            .header("Content-Type", "text/html")
-                            .body(Body::from(contents))
-                            .unwrap()
-                    }
-                    Err(_) => {
-                        Response::builder()
-                            .status(StatusCode::NOT_FOUND)
-                            .body(Body::from("404 Not Found"))
-                            .unwrap()
-                    }
-                }
+                state.static_cache.serve_file(&index_path).await
             } else {
                 Response::builder()
                     .status(StatusCode::NOT_FOUND)

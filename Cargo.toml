@@ -45,6 +45,7 @@ bytes = "1.8"
 uuid = { version = "1.11", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde"] }
 mime_guess = "2.0"
+memmap2 = "0.9"
 
 # Process management for apps
 nix = { version = "0.29", features = ["process", "signal"] }
