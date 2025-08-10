@@ -72,23 +72,23 @@ tonic = "0.11"
 prost = "0.12"
 hashring = "0.3"
 bincode = "1.3"
-raft = "0.7"
+# raft = "0.7"  # Temporarily disabled - protoc version conflict
 
 # WebSocket support
 tokio-tungstenite = "0.24"
 
-# HTTP/3 & QUIC support
-quinn = "0.11"
-h3 = "0.0.6"
-h3-quinn = "0.0.7"
+# HTTP/3 & QUIC support (disabled for benchmark - version conflicts)
+# quinn = "0.11"
+# h3 = "0.0.6"
+# h3-quinn = "0.0.7"
 
-# GraphQL support
-async-graphql = "7.0"
-async-graphql-axum = "7.0"
+# GraphQL support - use stable version
+async-graphql = "6.0"
+async-graphql-axum = "6.0"
 
 # WebAssembly plugin support
-wasmtime = "27.0"
-wasmtime-wasi = "27.0"
+wasmtime = "25.0"
+wasmtime-wasi = "25.0"
 
 # io_uring support (Linux)
 tokio-uring = { version = "0.5", optional = true }
@@ -112,7 +112,7 @@ tonic-build = "0.11"
 
 [features]
 default = ["full"]
-full = ["websocket", "http3", "grpc", "graphql", "wasm-plugins", "clustering"]
+full = ["websocket", "http3", "grpc", "wasm-plugins", "clustering"]
 websocket = []
 http3 = []
 grpc = []

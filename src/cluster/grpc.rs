@@ -9,6 +9,7 @@ use super::NodeInfo;
 
 // Proto definitions
 pub mod cluster_rpc {
+    #![allow(clippy::all)]
     tonic::include_proto!("cluster");
 }
 

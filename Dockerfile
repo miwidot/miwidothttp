@@ -1,14 +1,15 @@
 # Build stage - optimized for performance
-FROM rust:1.75 as builder
+FROM rust:1.82 AS builder
 
 WORKDIR /app
 
 # Install protoc for gRPC
 RUN apt-get update && apt-get install -y protobuf-compiler
 
-# Copy manifest files
+# Copy manifest files and proto
 COPY Cargo.toml Cargo.lock ./
 COPY build.rs ./
+COPY proto ./proto
 
 # Create dummy main to cache dependencies
 RUN mkdir src && echo "fn main() {}" > src/main.rs

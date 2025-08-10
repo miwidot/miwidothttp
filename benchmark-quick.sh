@@ -41,8 +41,8 @@ EOF
 
 # Start containers
 echo "Starting containers..."
-docker-compose -f docker-compose-quick.yml down 2>/dev/null || true
-docker-compose -f docker-compose-quick.yml up -d
+docker compose -f docker-compose-quick.yml down 2>/dev/null || true
+docker compose -f docker-compose-quick.yml up -d
 
 # Wait for services
 echo "Waiting for services to start..."
@@ -106,7 +106,7 @@ run_quick_test "nginx" "http://localhost:8081/100kb.bin"
 # Cleanup
 echo ""
 echo "Cleaning up..."
-docker-compose -f docker-compose-quick.yml down
+docker compose -f docker-compose-quick.yml down
 
 echo ""
 echo "Quick benchmark complete!"

@@ -1,7 +1,7 @@
 # miwidothttp Configuration
 
 [server]
-http_port = 8080
+http_port = 9001
 https_port = 8443
 enable_https = true
 workers = 4

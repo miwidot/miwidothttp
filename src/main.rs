@@ -26,6 +26,13 @@ mod security;
 mod session_manager;
 mod rewrite_engine;
 mod metrics;
+mod websocket;
+// mod http3;  // Temporarily disabled - version conflicts
+mod graphql;
+// mod wasm_plugins;  // Temporarily disabled - API changes
+mod circuit_breaker;
+// mod connection_pool;  // Temporarily disabled - compilation errors
+// mod cache;  // Temporarily disabled - compilation errors
 
 use process_manager::{ProcessManager, ProcessConfig, AppType};
 use security::{SecurityConfig, RateLimiter, security_headers_middleware};
