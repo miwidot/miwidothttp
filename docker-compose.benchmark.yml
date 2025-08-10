@@ -1,0 +1,83 @@
+version: '3.8'
+
+services:
+  # Our server
+  miwidothttp:
+    build: .
+    ports:
+      - "9002:8080"
+    volumes:
+      - ./static:/app/static:ro
+    container_name: bench-miwidothttp
+
+  # nginx
+  nginx:
+    image: nginx:1.25-alpine
+    ports:
+      - "8001:80"
+    volumes:
+      - ./static:/usr/share/nginx/html:ro
+    container_name: bench-nginx
+
+  # Apache2
+  apache:
+    image: httpd:2.4-alpine
+    ports:
+      - "8002:80"
+    volumes:
+      - ./static:/usr/local/apache2/htdocs:ro
+    container_name: bench-apache
+
+  # FrankenPHP (modern PHP server with Go)
+  frankenphp:
+    image: dunglas/frankenphp:latest-alpine
+    ports:
+      - "8003:80"
+    volumes:
+      - ./static:/app/public:ro
+    environment:
+      - SERVER_NAME=:80
+    container_name: bench-frankenphp
+    command: ["frankenphp", "run", "--config", "/etc/caddy/Caddyfile"]
+
+  # Caddy (modern Go web server)
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "8004:80"
+    volumes:
+      - ./static:/usr/share/caddy:ro
+    container_name: bench-caddy
+
+  # LiteSpeed OpenLiteSpeed
+  litespeed:
+    image: litespeedtech/openlitespeed:latest
+    ports:
+      - "8005:8088"
+    volumes:
+      - ./static:/var/www/vhosts/localhost/html:ro
+    container_name: bench-litespeed
+
+  # Node.js Express
+  node-express:
+    image: node:20-alpine
+    ports:
+      - "8006:3000"
+    volumes:
+      - ./static:/app/static:ro
+      - ./node-server:/app:ro
+    working_dir: /app
+    container_name: bench-node
+    command: ["node", "server.js"]
+
+  # Bun (fast JavaScript runtime)
+  bun:
+    image: oven/bun:alpine
+    ports:
+      - "8007:3000"
+    volumes:
+      - ./static:/app/static:ro
+      - ./bun-server:/app:ro
+    working_dir: /app
+    container_name: bench-bun
+    command: ["bun", "run", "server.js"]
