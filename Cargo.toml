@@ -73,12 +73,12 @@ tonic = "0.11"
 prost = "0.12"
 hashring = "0.3"
 bincode = "1.3"
-# raft = "0.7"  # Temporarily disabled - protoc version conflict
+# raft = "0.7"  # Version detection issue with protoc 29.x
 
 # WebSocket support
 tokio-tungstenite = "0.24"
 
-# HTTP/3 & QUIC support (disabled for benchmark - version conflicts)
+# HTTP/3 & QUIC support - disabled due to version incompatibility
 # quinn = "0.11"
 # h3 = "0.0.6"
 # h3-quinn = "0.0.7"
@@ -90,9 +90,6 @@ async-graphql-axum = "6.0"
 # WebAssembly plugin support
 wasmtime = "25.0"
 wasmtime-wasi = "25.0"
-
-# io_uring support (Linux)
-tokio-uring = { version = "0.5", optional = true }
 
 # Circuit breaker is already included in tower above
 
@@ -111,6 +108,10 @@ hostname = "0.4"
 [build-dependencies]
 tonic-build = "0.11"
 
+[target.'cfg(target_os = "linux")'.dependencies]
+tokio-uring = "0.5"
+io-uring = "0.7"
+
 [features]
 default = ["full"]
 full = ["websocket", "http3", "grpc", "wasm-plugins", "clustering"]
@@ -120,7 +121,6 @@ grpc = []
 graphql = []
 wasm-plugins = []
 clustering = []
-io-uring = ["tokio-uring"]
 
 [profile.release]
 lto = true

@@ -3,59 +3,40 @@ version: '3.8'
 services:
   miwidothttp:
     build: .
-    container_name: miwidothttp
     ports:
-      - "8080:8080"
+      - "9001:9001"
       - "8443:8443"
     volumes:
       - ./config.toml:/etc/miwidothttp/config.toml:ro
       - ./static:/app/static:ro
-      - ./certs:/app/certs:ro
-      - logs:/var/log/miwidothttp
     environment:
       - RUST_LOG=info
-    restart: unless-stopped
-    networks:
-      - web
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9001/health"]
       interval: 30s
-      timeout: 3s
+      timeout: 10s
       retries: 3
-      start_period: 10s
 
-  # Optional: Redis for session storage
-  redis:
-    image: redis:7-alpine
-    container_name: miwidothttp-redis
+  nginx:
+    image: nginx:alpine
     ports:
-      - "6379:6379"
+      - "8080:80"
     volumes:
-      - redis-data:/data
-    networks:
-      - web
-    restart: unless-stopped
-    command: redis-server --appendonly yes
+      - ./static:/usr/share/nginx/html:ro
 
-  # Optional: Example Node.js backend
-  node-app:
-    image: node:20-alpine
-    container_name: miwidothttp-node-app
-    working_dir: /app
-    volumes:
-      - ./apps/node-app:/app
-    command: npm start
-    networks:
-      - web
-    restart: unless-stopped
-    environment:
-      - NODE_ENV=production
-      - PORT=3000
-
-networks:
-  web:
-    driver: bridge
-
-volumes:
-  logs:
-  redis-data:
+  benchmark:
+    image: williamyeh/wrk
+    profiles: ["benchmark"]
+    depends_on:
+      - miwidothttp
+      - nginx
+    command: >
+      sh -c "
+        echo 'Waiting for servers to start...';
+        sleep 5;
+        echo 'Testing miwidothttp...';
+        wrk -t4 -c100 -d10s --latency http://miwidothttp:9001/index.html;
+        echo '';
+        echo 'Testing nginx...';
+        wrk -t4 -c100 -d10s --latency http://nginx/index.html
+      "

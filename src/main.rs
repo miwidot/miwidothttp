@@ -31,9 +31,10 @@ mod websocket;
 mod graphql;
 // mod wasm_plugins;  // Temporarily disabled - API changes
 mod circuit_breaker;
-// mod connection_pool;  // Temporarily disabled - compilation errors
-// mod cache;  // Temporarily disabled - compilation errors
+// mod connection_pool;  // API changes in deadpool
+// mod cache;  // API changes in cacache
 mod static_cache;
+mod linux_io;
 
 use process_manager::{ProcessManager, ProcessConfig, AppType};
 use security::{SecurityConfig, RateLimiter, security_headers_middleware};

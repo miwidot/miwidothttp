@@ -1,0 +1,24 @@
+FROM alpine:latest
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    libgcc \
+    libstdc++ \
+    ca-certificates
+
+WORKDIR /app
+
+# Copy pre-built binary
+COPY target/release/miwidothttp /usr/local/bin/
+
+# Copy static files
+COPY static ./static
+
+# Create config directory
+RUN mkdir -p /etc/miwidothttp
+
+# Expose ports
+EXPOSE 9001 8443
+
+# Run the server
+CMD ["miwidothttp"]
